@@ -54,23 +54,57 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
     };
   }, [state.selectedBackground?.index]);
 
-  const srd = useMemo(() => {
-    if (!srdBackground) return null;
+  const suggestions = useMemo(() => {
+    const defaults = {
+      choose: { traits: 2, ideals: 1, bonds: 1, flaws: 1 },
+      traitOptions: [
+        "I speak softly, but I carry a big stick.",
+        "I’m always polite and respectful.",
+        "I face problems head-on; a simple, direct solution is the best path to success.",
+        "I often quote (or misquote) sacred texts and proverbs.",
+        "I watch over my friends as if they were a litter of newborn pups.",
+        "I’m driven by a wanderlust that led me away from home.",
+      ],
+      idealOptions: [
+        "Charity. I always try to help those in need.",
+        "Tradition. The ancient traditions of worship must be preserved.",
+        "Freedom. Chains are meant to be broken, as are those who would forge them.",
+        "Knowledge. The path to power and self‑improvement is through knowledge.",
+      ],
+      bondOptions: [
+        "I owe my life to the priest who took me in when my parents died.",
+        "I will get revenge on the evil forces that destroyed my home.",
+        "Someone I love died because of a mistake I made. That will never happen again.",
+        "I seek to preserve a sacred text that my enemies consider heretical.",
+      ],
+      flawOptions: [
+        "I am inflexible in my thinking.",
+        "I judge others harshly and myself even more so.",
+        "I am suspicious of strangers and quick to assume the worst.",
+        "I can’t resist a pretty face.",
+      ],
+    };
+
+    if (!srdBackground) return defaults;
+
     const traitOptions = srdBackground.personality_traits?.from?.options?.map((o: any) => o.string).filter(Boolean) || [];
     const idealOptions = srdBackground.ideals?.from?.options?.map((o: any) => o.desc).filter(Boolean) || [];
     const bondOptions = srdBackground.bonds?.from?.options?.map((o: any) => o.string).filter(Boolean) || [];
     const flawOptions = srdBackground.flaws?.from?.options?.map((o: any) => o.string).filter(Boolean) || [];
+
+    const choose = {
+      traits: srdBackground.personality_traits?.choose ?? defaults.choose.traits,
+      ideals: srdBackground.ideals?.choose ?? defaults.choose.ideals,
+      bonds: srdBackground.bonds?.choose ?? defaults.choose.bonds,
+      flaws: srdBackground.flaws?.choose ?? defaults.choose.flaws,
+    };
+
     return {
-      choose: {
-        traits: srdBackground.personality_traits?.choose ?? 2,
-        ideals: srdBackground.ideals?.choose ?? 1,
-        bonds: srdBackground.bonds?.choose ?? 1,
-        flaws: srdBackground.flaws?.choose ?? 1,
-      },
-      traitOptions,
-      idealOptions,
-      bondOptions,
-      flawOptions,
+      choose,
+      traitOptions: traitOptions.length ? traitOptions : defaults.traitOptions,
+      idealOptions: idealOptions.length ? idealOptions : defaults.idealOptions,
+      bondOptions: bondOptions.length ? bondOptions : defaults.bondOptions,
+      flawOptions: flawOptions.length ? flawOptions : defaults.flawOptions,
     };
   }, [srdBackground]);
 
@@ -88,7 +122,7 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
     if (exists) {
       next = lines.filter((s) => s !== value);
     } else {
-      const limit = srd?.choose[kind] ?? (kind === "traits" ? 2 : 1);
+      const limit = suggestions?.choose[kind] ?? (kind === "traits" ? 2 : 1);
       if (limit && lines.length >= limit) {
         // replace the last selected to respect SRD choose count
         next = [...lines.slice(0, limit - 1), value];
@@ -131,11 +165,11 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
             onChange={(e) => setTraits(e.target.value)}
             placeholder="Quirks, habits, mannerisms..."
           />
-          {srd && srd.traitOptions.length > 0 && (
+          {suggestions && suggestions.traitOptions.length > 0 && (
             <div className="mt-2">
-              <div className="text-sm mb-1">Suggestions (choose {srd.choose.traits}):</div>
+              <div className="text-sm mb-1">Suggestions (choose {suggestions.choose.traits}):</div>
               <div className="flex flex-wrap gap-2">
-                {srd.traitOptions.map((opt) => {
+                {suggestions.traitOptions.map((opt) => {
                   const selected = traits.split("\n").includes(opt);
                   return (
                     <button
@@ -160,11 +194,11 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
             onChange={(e) => setIdeals(e.target.value)}
             placeholder="Beliefs or guiding principles..."
           />
-          {srd && srd.idealOptions.length > 0 && (
+          {suggestions && suggestions.idealOptions.length > 0 && (
             <div className="mt-2">
-              <div className="text-sm mb-1">Suggestions (choose {srd.choose.ideals}):</div>
+              <div className="text-sm mb-1">Suggestions (choose {suggestions.choose.ideals}):</div>
               <div className="flex flex-wrap gap-2">
-                {srd.idealOptions.map((opt) => {
+                {suggestions.idealOptions.map((opt) => {
                   const selected = ideals.split("\n").includes(opt);
                   return (
                     <button
@@ -189,11 +223,11 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
             onChange={(e) => setBonds(e.target.value)}
             placeholder="People, places, or obligations..."
           />
-          {srd && srd.bondOptions.length > 0 && (
+          {suggestions && suggestions.bondOptions.length > 0 && (
             <div className="mt-2">
-              <div className="text-sm mb-1">Suggestions (choose {srd.choose.bonds}):</div>
+              <div className="text-sm mb-1">Suggestions (choose {suggestions.choose.bonds}):</div>
               <div className="flex flex-wrap gap-2">
-                {srd.bondOptions.map((opt) => {
+                {suggestions.bondOptions.map((opt) => {
                   const selected = bonds.split("\n").includes(opt);
                   return (
                     <button
@@ -218,11 +252,11 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
             onChange={(e) => setFlaws(e.target.value)}
             placeholder="Weaknesses, vices, or tendencies..."
           />
-          {srd && srd.flawOptions.length > 0 && (
+          {suggestions && suggestions.flawOptions.length > 0 && (
             <div className="mt-2">
-              <div className="text-sm mb-1">Suggestions (choose {srd.choose.flaws}):</div>
+              <div className="text-sm mb-1">Suggestions (choose {suggestions.choose.flaws}):</div>
               <div className="flex flex-wrap gap-2">
-                {srd.flawOptions.map((opt) => {
+                {suggestions.flawOptions.map((opt) => {
                   const selected = flaws.split("\n").includes(opt);
                   return (
                     <button
