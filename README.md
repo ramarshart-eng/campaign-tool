@@ -1,6 +1,6 @@
 ## Campaign Tool
 
-This is a Next.js app for building and playing tabletop RPG characters with a simple, fast UI. It includes a character builder, a character sheet + play area, a notes book with a two‑page layout, and lightweight dice/roll logging utilities.
+This is a Next.js app for building and playing tabletop RPG characters with a simple, fast UI. It includes a character builder, a character sheet + play area, a notes book with a two-page layout, and lightweight dice/roll logging utilities.
 
 ## Getting Started
 
@@ -23,7 +23,7 @@ Open http://localhost:3000 with your browser.
 This repo includes a PowerShell helper script to create a GitHub repository, add it as a remote, and push your code.
 
 Requirements:
-- A GitHub Personal Access Token with `repo` scope (or a fine‑grained token with Contents: Read/Write for this repo)
+- A GitHub Personal Access Token with `repo` scope (or a fine-grained token with Contents: Read/Write for this repo)
 - Your GitHub username
 
 Usage (PowerShell):
@@ -47,7 +47,7 @@ git push -u origin main
 ## Features
 - Character builder with step flow (race, class, ability scores, background, equipment)
 - Character sheet and play area with tabbed hotbar
-- Notes book with two‑page “paper” layout and lined textarea
+- Notes book with two-page “paper” layout and lined textarea
 - Roll buttons and roll log, simple dice rules utilities
 - Tailwind CSS v4 + custom CSS tokens for surfaces/colors
 
@@ -84,7 +84,7 @@ src/
 ## Styling Conventions
 - Theme tokens in `src/styles/globals.css` under `:root` (surface/background/fg)
 - Prefer Tailwind utilities; add small, reusable component classes only when needed
-- Keep interactive states accessible (hover/focus) and high‑contrast
+- Keep interactive states accessible (hover/focus) and high-contrast
 
 ## Development Notes
 - State: `CharacterContext` centralizes character state for builder and sheet
@@ -98,8 +98,9 @@ See `CONTRIBUTING.md` for branch strategy, commit style, and PR checklist.
 See `docs/ARCHITECTURE.md` for component boundaries, data flow, and conventions.
 
 ## Scope & Roadmap
-See `docs/SCOPE.md` for goals, non‑goals, phases, and acceptance criteria.
+See `docs/SCOPE.md` for goals, non-goals, phases, and acceptance criteria.
 
 ## Deploy
 
 Vercel is recommended. Framework preset: Next.js. No special env vars required.
+
