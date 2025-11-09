@@ -37,7 +37,7 @@ const ClassStep: React.FC<ClassStepProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex flex-col h-full">
       <div>
         <h2 className=" mb-1">Choose Your Class</h2>
         <p className="text-muted mt-0">
@@ -103,7 +103,7 @@ const ClassStep: React.FC<ClassStepProps> = ({
         </div>
       )}
 
-      <div className="flex justify-between pt-4">
+      <div className="flex justify-between pt-4 mt-auto">
         <button
           type="button"
           onClick={onPrevious}

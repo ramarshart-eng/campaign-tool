@@ -121,7 +121,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex flex-col h-full">
       <div>
         <h2 className=" mb-2">Select Your Equipment</h2>
         <p className="text-muted">
@@ -180,7 +180,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
         </div>
       </div>
 
-      <div className="flex justify-between pt-4">
+      <div className="flex justify-between pt-4 mt-auto">
         <button
           type="button"
           onClick={onPrevious}

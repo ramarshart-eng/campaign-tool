@@ -148,7 +148,7 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex flex-col h-full">
       <div>
         <h2 className=" mb-1">Define Your Personality</h2>
         <p className="text-muted mt-0">
@@ -280,7 +280,7 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
         </div>
       </div>
 
-      <div className="flex justify-between pt-4">
+      <div className="flex justify-between pt-4 mt-auto">
         <button
           type="button"
           onClick={onPrevious}

@@ -37,7 +37,7 @@ const RaceStep: React.FC<RaceStepProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex flex-col h-full">
       <div>
         <h2 className=" mb-1">Choose Your Race</h2>
         <p className="text-muted mt-0">
@@ -99,7 +99,7 @@ const RaceStep: React.FC<RaceStepProps> = ({
         </div>
       )}
 
-      <div className="flex justify-between pt-4">
+      <div className="flex justify-between pt-4 mt-auto">
         <button
           type="button"
           onClick={onPrevious}

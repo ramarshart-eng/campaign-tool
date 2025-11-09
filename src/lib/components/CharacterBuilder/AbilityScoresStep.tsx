@@ -73,7 +73,7 @@ const AbilityScoresStep: React.FC<AbilityScoresStepProps> = ({
   const allAssigned = availableScores.length === 0 || availableScores.every((s) => s === 10);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex flex-col h-full">
       <div>
         <h2 className=" mb-2">Assign Ability Scores</h2>
         <p className="text-muted mb-4">
@@ -129,7 +129,7 @@ const AbilityScoresStep: React.FC<AbilityScoresStepProps> = ({
         })}
       </div>
 
-      <div className="flex justify-between pt-4">
+      <div className="flex justify-between pt-4 mt-auto">
         <button type="button" onClick={onPrevious} className="btn-frame">
           Previous
         </button>

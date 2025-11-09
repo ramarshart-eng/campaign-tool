@@ -141,7 +141,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex flex-col h-full">
       <div>
         <h2 className=" mb-2">Review Your Character</h2>
         <p className="text-muted">
@@ -228,7 +228,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
         </div>
       </div>
 
-      <div className="flex justify-between pt-4">
+      <div className="flex justify-between pt-4 mt-auto">
         <button
           type="button"
           onClick={onPrevious}

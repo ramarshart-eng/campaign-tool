@@ -15,6 +15,7 @@ import EquipmentStep from "./EquipmentStep";
 import ReviewStep from "./ReviewStep";
 import type { Item } from "@/lib/types/Item";
 import PersonalityStep from "./PersonalityStep";
+import { getRaces, getClasses, getBackground as fetchSRDBackground } from "@/lib/api/srd";
 
 export type BuilderStep =
   | "name"
@@ -83,7 +84,24 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
     setBuilderState((prev) => ({ ...prev, ...updates }));
   };
 
-  const nextStep = () => {
+  const preloadStep = async (step: BuilderStep) => {
+    try {
+      if (step === "race") {
+        await getRaces();
+      } else if (step === "class") {
+        await getClasses();
+      } else if (step === "personality") {
+        const idx = builderState.selectedBackground?.index;
+        if (idx) {
+          await fetchSRDBackground(idx);
+        }
+      }
+    } catch (_) {
+      // Ignore preload errors; step will handle errors gracefully
+    }
+  };
+
+  const nextStep = async () => {
     const steps: BuilderStep[] = [
       "name",
       "race",
@@ -96,11 +114,13 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
     ];
     const currentIndex = steps.indexOf(currentStep);
     if (currentIndex < steps.length - 1) {
-      setCurrentStep(steps[currentIndex + 1]);
+      const target = steps[currentIndex + 1];
+      await preloadStep(target);
+      setCurrentStep(target);
     }
   };
 
-  const previousStep = () => {
+  const previousStep = async () => {
     const steps: BuilderStep[] = [
       "name",
       "race",
@@ -113,7 +133,9 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
     ];
     const currentIndex = steps.indexOf(currentStep);
     if (currentIndex > 0) {
-      setCurrentStep(steps[currentIndex - 1]);
+      const target = steps[currentIndex - 1];
+      await preloadStep(target);
+      setCurrentStep(target);
     }
   };
 
