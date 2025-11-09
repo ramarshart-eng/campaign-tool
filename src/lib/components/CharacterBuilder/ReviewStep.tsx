@@ -152,24 +152,16 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
       <div className="frame pad-6 space-y-4">
         <div>
           <h3 className="">{state.name}</h3>
-          <p className=" text-muted">
-            Level 1 {state.selectedRace.name} {state.selectedClass.name}
+          <p className=" text-muted">Level 1 {state.selectedRace.name} {state.selectedClass.name}</p>
+          <p className=" text-sm mt-1">
+            <span className="text-subtle">Race:</span> {state.selectedRace.name}
+            <span className="mx-2">•</span>
+            <span className="text-subtle">Class:</span> {state.selectedClass.name}
+            <span className="mx-2">•</span>
+            <span className="text-subtle">Background:</span> {state.selectedBackground.name}
+            <span className="mx-2">•</span>
+            <span className="text-subtle">Hit Die:</span> 1d{state.selectedClass.hit_die}
           </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <span className="">Race:</span> {state.selectedRace.name}
-          </div>
-          <div>
-            <span className="">Class:</span> {state.selectedClass.name}
-          </div>
-          <div>
-            <span className="">Background:</span> {state.selectedBackground.name}
-          </div>
-          <div>
-            <span className="">Hit Die:</span> 1d{state.selectedClass.hit_die}
-          </div>
         </div>
 
         <div>
@@ -201,14 +193,14 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
           <h4 className=" mb-2">Equipment</h4>
           <p className=" text-muted mb-1">Includes class starting equipment and standard adventuring gear.</p>
           {state.inventory && state.inventory.length > 0 ? (
-            <ul className="list-disc list-inside">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
               {state.inventory.map((it) => (
-                <li key={it.id}>
+                <div key={it.id}>
                   {it.name}
                   {it.description ? <span className=" text-subtle"> — {it.description}</span> : null}
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           ) : (
             <div className=" text-muted">No items</div>
           )}

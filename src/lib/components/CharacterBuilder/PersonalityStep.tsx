@@ -160,7 +160,8 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
         <div className="frame pad-4">
           <div className="mb-2">Personality Traits</div>
           <textarea
-            className="w-full min-h-28 border-2 border-black p-2 bg-transparent textarea-lined"
+            rows={2}
+            className="w-full border-2 border-black p-2 bg-transparent textarea-lined"
             value={traits}
             onChange={(e) => setTraits(e.target.value)}
             placeholder="Quirks, habits, mannerisms..."
@@ -189,7 +190,8 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
         <div className="frame pad-4">
           <div className="mb-2">Ideals</div>
           <textarea
-            className="w-full min-h-28 border-2 border-black p-2 bg-transparent textarea-lined"
+            rows={2}
+            className="w-full border-2 border-black p-2 bg-transparent textarea-lined"
             value={ideals}
             onChange={(e) => setIdeals(e.target.value)}
             placeholder="Beliefs or guiding principles..."
@@ -218,7 +220,8 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
         <div className="frame pad-4">
           <div className="mb-2">Bonds</div>
           <textarea
-            className="w-full min-h-28 border-2 border-black p-2 bg-transparent textarea-lined"
+            rows={2}
+            className="w-full border-2 border-black p-2 bg-transparent textarea-lined"
             value={bonds}
             onChange={(e) => setBonds(e.target.value)}
             placeholder="People, places, or obligations..."
@@ -247,7 +250,8 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
         <div className="frame pad-4">
           <div className="mb-2">Flaws</div>
           <textarea
-            className="w-full min-h-28 border-2 border-black p-2 bg-transparent textarea-lined"
+            rows={2}
+            className="w-full border-2 border-black p-2 bg-transparent textarea-lined"
             value={flaws}
             onChange={(e) => setFlaws(e.target.value)}
             placeholder="Weaknesses, vices, or tendencies..."
