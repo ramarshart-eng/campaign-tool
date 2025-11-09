@@ -1,0 +1,510 @@
+﻿@import "tailwindcss";
+
+body {
+  background: #cccbb7;
+  color: #000000;
+  
+}
+
+:root {
+  --color-fg: #000000;
+  --color-bg: #cccbb7;
+  --color-surface: #ffffff; /* boxes, panels, buttons */
+  --color-muted: #000000;
+  --color-subtle: #000000;
+  --color-danger: #000000;
+  --color-warning: #000000;
+  --color-success: #000000;
+}
+/* Simple helpers for app foreground/background */
+.text-fg { color: var(--color-fg); }
+.bg-app { background: var(--color-bg); }
+
+/* Remove special header/body font overrides to use a single body font */
+
+/* Hide native scrollbars but keep scrolling enabled */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Dice button hover + content-swap shared styles */
+.dice-btn {
+  background: var(--color-surface);
+  color: #000;
+  border: 2px solid black;
+  position: relative;
+  overflow: hidden;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.dice-btn .btn-default {
+  transition: opacity 150ms ease, transform 150ms ease;
+  will-change: opacity, transform;
+}
+.dice-btn .btn-default.column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.dice-btn .btn-dice {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 150ms ease, transform 150ms ease;
+  will-change: opacity, transform;
+  color: inherit;
+  background: transparent;
+}
+.dice-btn:hover,
+.dice-btn:focus {
+  background: black;
+  color: white;
+}
+.dice-btn:hover .btn-default,
+.dice-btn:focus .btn-default {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.dice-btn:hover .btn-dice,
+.dice-btn:focus .btn-dice {
+  opacity: 1;
+  transform: translateY(0);
+}
+.dice-btn:focus-visible {
+  outline: 3px solid rgba(0,0,0,0.12);
+}
+
+/* Variants */
+.dice-btn-compact {
+  background: transparent;
+  color: #000;
+  border: none;
+  text-align: left;
+}
+.dice-btn-compact .btn-default {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Panel component extracted styles */
+.panel {
+  border: 2px solid #000;
+  background: var(--color-surface);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.panel--open { height: 100%; }
+.panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+}
+.panel__header--border { border-bottom: 2px solid #000; }
+.panel__header--collapsible { cursor: pointer; }
+.panel__header--static { cursor: default; }
+.panel__title { margin: 0; }
+.panel__toggle { user-select: none; }
+.panel__content {
+  flex: 1;
+  padding: 0.75rem;
+  overflow: auto;
+}
+.panel__content > * + * { margin-top: 0.5rem; }
+
+/* Tabs (used in PlayArea and Action hotbar) */
+.tab-bar { display: flex; gap: 0; }
+.tab-btn {
+  border: 2px solid #000;
+  background: var(--color-surface);
+  color: #000;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  padding: 0 1.25rem;
+  transition: background-color 150ms ease, color 150ms ease;
+  flex: 1;
+  min-width: 0;
+}
+.tab-btn + .tab-btn { margin-left: -2px; }
+.tab-btn .tab-label { display: inline-block; transition: transform 150ms ease; }
+.tab-btn:hover .tab-label { transform: scale(1.1); }
+.tab-btn--lg { height: 4rem; padding-left: 2rem; padding-right: 2rem; z-index: 20; }
+
+/* Framed button (light) */
+.btn-frame { border: 2px solid #000; background: var(--color-surface); color: #000; padding: 0.5rem 0.75rem; }
+.btn-frame:hover { background: var(--color-surface); }
+.btn-disabled { background: var(--color-surface) !important; color: #000 !important; cursor: not-allowed; }
+.btn-frame--sm { padding: 0.125rem 0.5rem; }
+.btn-frame--lg { padding: 0.5rem 1.5rem; }
+
+/* Generic framed container */
+.frame { border: 2px solid #000; background: var(--color-surface); }
+.pad-1 { padding: 0.25rem; }
+.pad-2 { padding: 0.5rem; }
+.pad-3 { padding: 0.75rem; }
+.pad-4 { padding: 1rem; }
+.pad-6 { padding: 1.5rem; }
+
+/* Inputs */
+.input-frame { border: 2px solid #000; padding: 0.5rem 0.75rem; background: var(--color-surface); color: #000; }
+.input-frame:focus { outline: 2px solid #000; outline-offset: 0; }
+
+/* Centralized text colors */
+.text-muted { color: var(--color-muted); }
+.text-subtle { color: var(--color-subtle); }
+.text-danger { color: var(--color-danger); }
+.text-warning { color: var(--color-warning); }
+.text-success { color: var(--color-success); }
+
+/* Toggle group (two-state switch in PlayArea) */
+.toggle { display: inline-flex; border: 2px solid #000; overflow: hidden; background: var(--color-surface); color: #000; }
+.toggle__btn { padding: 0.375rem 0.75rem; background: var(--color-surface); color: #000; transition: background-color 150ms ease; }
+.toggle__btn + .toggle__btn { padding: 0.375rem 0.75rem; background: var(--color-surface); color: #000; transition: background-color 150ms ease; }
+.toggle__btn:hover { background: var(--color-surface); }
+.toggle__btn.is-active { background: var(--color-surface); color: #000; }
+
+/* Inventory grid */
+.inventory-grid { display: grid; gap: 0; border-left: 1px dotted #000; border-top: 1px dotted #000; width: 100%; height: 100%; box-sizing: border-box; }
+.inventory-cell { border-right: 1px dotted #000; border-bottom: 1px dotted #000; padding: 0.25rem; box-sizing: border-box; }
+.inventory-item { border: 2px solid #000; background: var(--color-surface); display: flex; align-items: center; justify-content: center; padding: 0 0.25rem; position: relative; box-sizing: border-box; }
+.inventory-item.is-equipped { border-color: #000; background: var(--color-surface); }
+
+/* Context menu (inventory item menu) */
+.context-menu {
+  position: fixed;
+  background: var(--color-surface);
+  border: 2px solid #000000;
+  /* Approximate Tailwind shadow-lg */
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  min-width: 8rem; /* Tailwind min-w-32 */
+}
+.context-menu__item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  text-align: left;
+  background: var(--color-surface);
+  color: #000;
+  border-bottom: 1px solid #000;
+}
+.context-menu__item:last-child { border-bottom: none; }
+.context-menu__item:hover { background: var(--color-surface); }
+
+
+/* Typography normalization */
+html, body, button, input, select, textarea, div, span, p {
+  font-size: 16px;
+  line-height: 1.4;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+}
+
+/* Headers use Manufacturing Consent (Tienne) */
+/* Reset headings to inherit base text until styles are finalized */
+h1, h2, h3, h4, h5, h6 {
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* Subheading uses body font (EB Garamond) for contrast with headers */
+.subheading { font-family: var(--font-eb-garamond); font-weight: 700; }
+
+/* Allow Tailwind's font-bold to use actual font weights */
+/* Tooltip (dark) */
+.tooltip {
+  position: fixed;
+  color: #000000;
+  background: var(--color-surface);
+  border: 2px solid #000000;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  padding: 0.75rem;
+  max-width: 20rem;
+  pointer-events: none;
+}
+
+/* Stat card (AC / PROF / HP / Level block) */
+.stat-card {
+  border: 2px solid #000;
+  background: var(--color-surface);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 5rem;
+}
+
+/* Choice card tiles (builder options) */
+.choice-card {
+  border: 2px solid #000;
+  background: var(--color-surface);
+  color: #000;
+  padding: 1rem;
+  text-align: left;
+  transition: background-color 150ms ease;
+}
+.choice-card:hover { background: var(--color-surface); }
+.choice-card.is-active { background: var(--color-surface); color: #000; outline: 2px solid #000; }
+/* Small selectable chips used for SRD suggestions */
+.choice-chip {
+  border: 1px solid #000;
+  background: var(--color-surface);
+  color: #000;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+.choice-chip.is-active {
+  outline: 2px solid #000;
+}
+
+/* Book-style two-page spread */
+.book {
+  display: grid;
+  grid-template-columns: auto auto; /* two pages, no spine column */
+  grid-template-rows: 1fr; /* stretch pages vertically */
+  column-gap: 0; /* page edges meet */
+  row-gap: 0; /* no vertical gap */
+  align-items: stretch; /* make pages fill height */
+  justify-content: center; /* center the spread if narrower than container */
+  height: 100%;
+  width: 100%;
+  position: relative; /* allow center seam */
+  /* Default page edge padding; tweaked per side below */
+  --page-pad-top: 0.25rem;
+  --page-pad-bottom: 0.25rem;
+  --page-pad-outer: 0.75rem; /* revert to original outer padding */
+  --page-pad-inner: 1.5rem;  /* near spine */
+}
+
+/* Wrapper to position nav buttons */
+.book-wrap { position: relative; --spread-outer-pad: 1rem; padding-inline: var(--spread-outer-pad); }
+
+/* Single center seam line */
+/* center seam disabled; use right page textarea left border instead */
+.book::after { display: none; }
+.book__page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  height: 100%;
+  aspect-ratio: 210 / 297; /* A4 portrait width/height */
+  width: auto; /* let width derive from height and aspect-ratio */
+  overflow: hidden;
+  position: relative; /* anchor page numbers */
+  box-sizing: border-box;
+  padding-top: var(--page-pad-top);
+  padding-bottom: var(--page-pad-bottom);
+}
+
+/* Paper area inside each page (contains title + notes) */
+.book__paper {
+  border: 2px solid #000;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  --paper-pad: 0.75rem;
+  /* Shared content-side padding variable so title, textarea, and page numbers align */
+  --page-side-pad: 1.875rem;
+  --content-pad-y: 1.5rem;
+  padding: var(--paper-pad); /* base padding; inner gutters handled by textarea */
+  position: relative; /* anchor inner page number */
+}
+.book__page--left .book__paper { border-right-width: 0; }
+.book__page--right .book__paper { border-left-width: 2px; }
+.book__page-header { font-size: 0.875rem; opacity: 0.8; text-align: center; margin: 0; padding: 0.25rem 0; }
+/* spine style retained for future use; no element currently rendered */
+.book__spine { display: none; }
+
+.book__textarea {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  resize: none; /* prevent breaking layout */
+  display: block;
+  border: none;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  /* Vertical rules: no extra top/bottom padding */
+  padding-top: var(--rlh); /* hide one ruled line at top */
+  padding-right: 0; /* side padding handled by .book__content */
+  padding-bottom: calc(var(--rlh) * 3); /* hide three ruled lines at bottom */
+  padding-left: 0; /* side padding handled by .book__content */
+}
+.book__textarea:focus { outline: none; }
+
+/* Wider inner gutter near the spine for balance */
+.book__page--left { padding-left: var(--page-pad-outer); padding-right: 0; }
+.book__page--right { padding-right: var(--page-pad-outer); padding-left: 0; }
+/* textarea side padding centralized via .book__content */
+
+/* remove title/index experimental styles */
+/* Basic title input */
+.book__title-input {
+  border: none;
+  border-bottom: 2px solid #000;
+  background: transparent;
+  color: inherit;
+  padding: 0.25rem 0;
+  margin: 0;
+}
+.book__title-input:focus { outline: none; }
+
+/* Index styles */
+.book__title { margin-bottom: 0.5rem; }
+.book__index { flex: 1 1 auto; overflow: auto; }
+.book__index-empty { opacity: 0.7; }
+.book__index-list { list-style: none; padding: 0; margin: 0; }
+.book__index-list li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.15rem 0; }
+.book__index-label { flex: 1; }
+.book__index-page { width: 2.5rem; text-align: right; opacity: 0.8; }
+
+/* Page numbers */
+.book__page-num {
+  position: absolute; /* now relative to .book__paper */
+  bottom: calc(var(--paper-pad) + var(--content-pad-y));
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+.book__page-num.left { left: calc(var(--paper-pad) + var(--page-side-pad)); }
+.book__page-num.right { right: calc(var(--paper-pad) + var(--page-side-pad)); }
+
+/* Builder step indicator */
+.step-dot {
+  width: 2rem; height: 2rem;
+  border: 2px solid #000;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-surface); color: #000;
+}
+.step-dot.is-active { box-shadow: inset 0 0 0 2px #000; }
+.step-dot.is-complete { background: var(--color-surface); }
+
+/* Fixed top tabs wrapper (PlayArea) */
+.top-tabs-wrap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Enable interaction inside fixed wrappers */
+.tabs-interactive { pointer-events: auto; }
+
+/* Hotbar tabs overlay (CharacterSheet) */
+.hotbar-tabs-overlay {
+  position: absolute;
+  top: -2rem; /* matches previous -top-8 */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: auto;
+}
+
+/* Surfaces (muted/info/warn) */
+.surface-muted { background: var(--color-surface); }
+.surface-info { background: var(--color-surface); }
+.surface-warn { background: var(--color-surface); }
+
+/* Primary action button */
+.btn-primary { border: 2px solid #000; background: var(--color-surface); color: #000; padding: 0.5rem 2rem; }
+.btn-primary:hover { background: var(--color-surface); }
+
+/* Generic hover muted */
+.hover-muted:hover { background: var(--color-surface); }
+
+
+/* Lined notepaper textarea */
+.textarea-lined {
+  /* Consistent row height */
+  --rlh: 1.5rem;
+  /* Shift rules slightly upward toward the baseline */
+  --rule-shift: 0.2rem;
+  line-height: var(--rlh);
+  /* Draw a 1px rule at the bottom of each line box */
+  background-image: linear-gradient(
+    to bottom,
+    transparent calc(var(--rlh) - 1px),
+    rgba(0, 0, 0, 0.12) 0
+  );
+  background-size: 100% var(--rlh);
+  /* Align rules with the content box so the first rule sits under line 1 */
+  background-origin: content-box;
+  background-clip: content-box;
+  /* Keep rules aligned as the textarea scrolls */
+  background-attachment: local;
+  /* Nudge the rules up to avoid sitting under descenders */
+  background-position: left calc(-1 * var(--rule-shift));
+}
+
+
+
+
+
+
+/* Shared horizontal padding for all inner page content */
+.book__content {
+  padding: var(--content-pad-y) var(--page-side-pad);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  min-height: 0; /* allow children to grow/shrink within page */
+}
+/* Nav buttons over the outer borders aligned with title area */
+.book__nav-btn {
+  position: absolute;
+  top: calc(var(--paper-pad) + var(--content-pad-y));
+  z-index: 2;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #000;
+  background: var(--color-surface);
+  color: #000;
+  padding: 0;
+  text-indent: -9999px; /* hide any accidental text */
+}
+.book__nav-btn--prev { left: calc(var(--paper-pad)); transform: translate(-50%, -50%); }
+.book__nav-btn--next { right: calc(var(--paper-pad)); transform: translate(50%, -50%); }
+
+/* Draw centered arrow with CSS triangles */
+.book__nav-btn::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0; height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+}
+.book__nav-btn--prev::before { border-right: 8px solid #000; }
+.book__nav-btn--next::before { border-left: 8px solid #000; }
