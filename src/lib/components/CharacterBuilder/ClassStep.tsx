@@ -5,12 +5,14 @@
 import React, { useState } from "react";
 import type { CharacterBuilderState } from "./CharacterBuilder";
 import { useClasses, useClass } from "@/lib/hooks/useSRD";
+import type { APIReference } from "@/lib/types/SRD";
 
 interface ClassStepProps {
   state: CharacterBuilderState;
   updateState: (updates: Partial<CharacterBuilderState>) => void;
   onNext: () => void;
   onPrevious: () => void;
+  classesPrefetch?: APIReference[];
 }
 
 const ClassStep: React.FC<ClassStepProps> = ({
@@ -18,8 +20,12 @@ const ClassStep: React.FC<ClassStepProps> = ({
   updateState,
   onNext,
   onPrevious,
+  classesPrefetch,
 }) => {
-  const { data: classes, loading, error } = useClasses();
+  const hook = useClasses();
+  const classes = classesPrefetch ?? hook.data;
+  const loading = classesPrefetch ? false : hook.loading;
+  const error = classesPrefetch ? null : hook.error;
   const [selectedIndex, setSelectedIndex] = useState<string | null>(
     state.selectedClass?.index || null
   );

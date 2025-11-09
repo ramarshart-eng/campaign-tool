@@ -5,12 +5,14 @@
 import React, { useState } from "react";
 import type { CharacterBuilderState } from "./CharacterBuilder";
 import { useRaces, useRace } from "@/lib/hooks/useSRD";
+import type { APIReference } from "@/lib/types/SRD";
 
 interface RaceStepProps {
   state: CharacterBuilderState;
   updateState: (updates: Partial<CharacterBuilderState>) => void;
   onNext: () => void;
   onPrevious: () => void;
+  racesPrefetch?: APIReference[];
 }
 
 const RaceStep: React.FC<RaceStepProps> = ({
@@ -18,8 +20,12 @@ const RaceStep: React.FC<RaceStepProps> = ({
   updateState,
   onNext,
   onPrevious,
+  racesPrefetch,
 }) => {
-  const { data: races, loading, error } = useRaces();
+  const hook = useRaces();
+  const races = racesPrefetch ?? hook.data;
+  const loading = racesPrefetch ? false : hook.loading;
+  const error = racesPrefetch ? null : hook.error;
   const [selectedIndex, setSelectedIndex] = useState<string | null>(
     state.selectedRace?.index || null
   );

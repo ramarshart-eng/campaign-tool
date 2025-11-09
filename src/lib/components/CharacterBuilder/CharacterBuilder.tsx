@@ -16,6 +16,7 @@ import ReviewStep from "./ReviewStep";
 import type { Item } from "@/lib/types/Item";
 import PersonalityStep from "./PersonalityStep";
 import { getRaces, getClasses, getBackground as fetchSRDBackground } from "@/lib/api/srd";
+import type { APIReference } from "@/lib/types/SRD";
 
 export type BuilderStep =
   | "name"
@@ -59,6 +60,8 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
   onCancel,
 }) => {
   const [currentStep, setCurrentStep] = useState<BuilderStep>("name");
+  const [racesCache, setRacesCache] = useState<APIReference[] | null>(null);
+  const [classesCache, setClassesCache] = useState<APIReference[] | null>(null);
   const [builderState, setBuilderState] = useState<CharacterBuilderState>({
     name: "",
     selectedRace: null,
@@ -87,9 +90,11 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
   const preloadStep = async (step: BuilderStep) => {
     try {
       if (step === "race") {
-        await getRaces();
+        const res = await getRaces();
+        setRacesCache(res.results);
       } else if (step === "class") {
-        await getClasses();
+        const res = await getClasses();
+        setClassesCache(res.results);
       } else if (step === "personality") {
         const idx = builderState.selectedBackground?.index;
         if (idx) {
@@ -145,7 +150,7 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-app p-4">
-      <div className="w-full max-w-7xl h-[960px] border-2 border-black bg-white builder-dense">
+      <div className="w-full max-w-7xl h-[960px] border-2 border-black bg-white builder-dense flex flex-col">
         {/* Progress indicator */}
         <div className="border-b-2 border-black p-4">
           <div className="flex justify-between items-center">
@@ -171,7 +176,7 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
         </div>
 
         {/* Step content */}
-        <div className="p-8">
+        <div className="p-8 flex-1 flex flex-col">
           {currentStep === "name" && (
             <NameStep
               state={builderState}
@@ -186,6 +191,7 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
               updateState={updateState}
               onNext={nextStep}
               onPrevious={previousStep}
+              racesPrefetch={racesCache ?? undefined}
             />
           )}
           {currentStep === "class" && (
@@ -194,6 +200,7 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
               updateState={updateState}
               onNext={nextStep}
               onPrevious={previousStep}
+              classesPrefetch={classesCache ?? undefined}
             />
           )}
           {currentStep === "abilities" && (
