@@ -123,7 +123,7 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-app p-4">
-      <div className="w-full max-w-4xl border-2 border-black bg-white">
+      <div className="w-full max-w-7xl h-[85vh] border-2 border-black bg-white flex flex-col">
         {/* Progress indicator */}
         <div className="border-b-2 border-black p-4">
           <div className="flex justify-between items-center">
@@ -149,7 +149,7 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
         </div>
 
         {/* Step content */}
-        <div className="p-8">
+        <div className="p-8 flex-1 overflow-auto">
           {currentStep === "name" && (
             <NameStep
               state={builderState}
