@@ -159,7 +159,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
                     )}
                   </div>
                   <span className=" text-subtle">
-                    {item.quantity > 1 ? `Ã—${item.quantity}` : ""}
+                    {item.quantity > 1 ? `x${item.quantity}` : ""}
                   </span>
                 </li>
               ))}
