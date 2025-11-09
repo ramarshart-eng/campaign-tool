@@ -97,7 +97,9 @@ See `CONTRIBUTING.md` for branch strategy, commit style, and PR checklist.
 ## Architecture
 See `docs/ARCHITECTURE.md` for component boundaries, data flow, and conventions.
 
+## Scope & Roadmap
+See `docs/SCOPE.md` for goals, non‑goals, phases, and acceptance criteria.
+
 ## Deploy
 
 Vercel is recommended. Framework preset: Next.js. No special env vars required.
-
