@@ -43,7 +43,7 @@ const RaceStep: React.FC<RaceStepProps> = ({
   };
 
   return (
-    <div className="space-y-6 flex flex-col h-full">
+    <div className="flex flex-col h-full gap-6">
       <div>
         <h2 className=" mb-1">Choose Your Race</h2>
         <p className="text-muted mt-0">

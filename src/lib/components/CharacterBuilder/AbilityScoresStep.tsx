@@ -73,7 +73,7 @@ const AbilityScoresStep: React.FC<AbilityScoresStepProps> = ({
   const allAssigned = availableScores.length === 0 || availableScores.every((s) => s === 10);
 
   return (
-    <div className="space-y-6 flex flex-col h-full">
+    <div className="flex flex-col h-full gap-6">
       <div>
         <h2 className=" mb-2">Assign Ability Scores</h2>
         <p className="text-muted mb-4">

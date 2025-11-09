@@ -121,7 +121,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
   };
 
   return (
-    <div className="space-y-6 flex flex-col h-full">
+    <div className="flex flex-col h-full gap-6">
       <div>
         <h2 className=" mb-2">Select Your Equipment</h2>
         <p className="text-muted">
