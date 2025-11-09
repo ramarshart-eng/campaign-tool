@@ -38,3 +38,30 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+
+## Share via GitHub (auto-setup)
+
+This repo includes a helper script to create a GitHub repository, add it as a remote, push your code, and optionally invite a collaborator.
+
+Requirements:
+- A GitHub Personal Access Token with `repo` scope
+- Your GitHub username
+
+Usage (PowerShell):
+
+```powershell
+# From the project root
+.\scriptsun `scripts/setup-github.ps1 -GithubUser "YOUR_USER" -Token "YOUR_PAT" -RepoName "campaign-tool" -FriendUser "FRIEND_USER"
+```
+
+Options:
+- `-UseSSH` to push via SSH (requires SSH keys set up)
+- Omit `-FriendUser` if you don’t want to invite anyone right now
+- Add `-Public` if you want the repository public (default is private)
+
+If you prefer to do it manually:
+
+```powershell
+git remote add origin https://github.com/YOUR_USER/campaign-tool.git
+git push -u origin main
+```
