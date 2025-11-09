@@ -110,21 +110,10 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
     ? CLASS_STARTING_EQUIPMENT[state.selectedClass.index] || []
     : [];
 
-  const [selectedItems, setSelectedItems] = useState<Item[]>(() => {
-    // Start with class equipment
-    return [...classEquipment];
+  const [selectedItems] = useState<Item[]>(() => {
+    // Include class equipment and all common items by default (no per-item selection)
+    return [...classEquipment, ...COMMON_ITEMS];
   });
-
-  const handleToggleCommonItem = (item: Item) => {
-    const existingIndex = selectedItems.findIndex((i) => i.id === item.id);
-    if (existingIndex >= 0) {
-      // Remove item
-      setSelectedItems(selectedItems.filter((_, idx) => idx !== existingIndex));
-    } else {
-      // Add item
-      setSelectedItems([...selectedItems, { ...item }]);
-    }
-  };
 
   const handleNext = () => {
     updateState({ inventory: selectedItems });
@@ -158,9 +147,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
                       </span>
                     )}
                   </div>
-                  <span className=" text-subtle">
-                    {item.quantity > 1 ? `x${item.quantity}` : ""}
-                  </span>
+                  {/* quantity already shown in name when applicable (e.g., "(2)") */}
                 </li>
               ))}
             </ul>
@@ -170,23 +157,23 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
         </div>
       </div>
 
-      {/* Additional Common Items */}
+      {/* Additional Common Items (included by default) */}
       <div>
-        <h3 className=" mb-3">Additional Adventuring Gear</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {COMMON_ITEMS.map((item) => {
-            const isSelected = selectedItems.some((i) => i.id === item.id);
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleToggleCommonItem(item)}
-                className={`choice-card text-left ${isSelected ? "is-active" : ""}`}
-              >
-                <div className="">{item.name}</div>
-                <div className=" opacity-80">{item.description}</div>
-              </button>
-            );
-          })}
+        <h3 className=" mb-3">Additional Adventuring Gear (included)</h3>
+        <div className="frame surface-muted pad-4">
+          <ul className="space-y-2">
+            {COMMON_ITEMS.map((item) => (
+              <li key={item.id} className="flex justify-between items-center">
+                <div>
+                  <span>{item.name}</span>
+                  {item.description && (
+                    <span className=" text-muted ml-2">- {item.description}</span>
+                  )}
+                </div>
+                {/* quantity shown in name when applicable */}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
