@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Character Creation Page
  * Entry point for the character builder wizard
  */
@@ -20,7 +20,7 @@ const CreateCharacterPage: NextPage = () => {
     // Save character to context
     setCharacter(character);
 
-    alert(`Character "${character.name}" created successfully!`);
+    router.push("/prototype/character");
     router.push("/prototype/character");
   };
 

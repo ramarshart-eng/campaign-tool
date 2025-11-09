@@ -102,12 +102,9 @@ const ClassStep: React.FC<ClassStepProps> = ({
               <div>
                 <span className="subheading">Proficiencies:</span>
                 <ul className="list-disc list-inside ml-2">
-                  {classDetails.proficiencies.slice(0, 5).map((prof) => (
+                  {classDetails.proficiencies.map((prof) => (
                     <li key={prof.index}>{prof.name}</li>
                   ))}
-                  {classDetails.proficiencies.length > 5 && (
-                    <li>...and {classDetails.proficiencies.length - 5} more</li>
-                  )}
                 </ul>
               </div>
             )}
