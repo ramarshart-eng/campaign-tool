@@ -64,4 +64,8 @@ export interface Character {
   notes?: string[]; // length 3 preferred
   // Optional titles per notes page (same index as notes pages)
   notesTitles?: string[];
+  // Optional category path (e.g., "Chapter > Section") per notes page
+  notesCategory?: string[];
+  // List of available category paths for the notebook index
+  notesCategoryList?: string[];
 }

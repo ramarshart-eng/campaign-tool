@@ -281,36 +281,41 @@ h1, h2, h3, h4, h5, h6 {
 /* Book-style two-page spread */
 .book {
   display: grid;
-  grid-template-columns: auto auto; /* two pages, no spine column */
+  grid-template-columns: auto auto; /* two pages sized to their content width */
   grid-template-rows: 1fr; /* stretch pages vertically */
   column-gap: 0; /* page edges meet */
   row-gap: 0; /* no vertical gap */
   align-items: stretch; /* make pages fill height */
   justify-content: center; /* center the spread if narrower than container */
-  height: 100%;
+  height: auto; /* let page height define the spread height */
   width: 100%;
-  position: relative; /* allow center seam */
+  position: relative; /* allow overlays if needed */
   /* Default page edge padding; tweaked per side below */
   --page-pad-top: 0.25rem;
   --page-pad-bottom: 0.25rem;
-  --page-pad-outer: 0.75rem; /* revert to original outer padding */
-  --page-pad-inner: 1.5rem;  /* near spine */
+  --page-pad-outer: 0.75rem; /* outer margin of each page */
+  --page-pad-inner: 1.5rem;  /* near meeting edge */
 }
 
 /* Wrapper to position nav buttons */
-.book-wrap { position: relative; --spread-outer-pad: 1rem; padding-inline: var(--spread-outer-pad); }
+.book-wrap {
+  position: relative;
+  --spread-outer-pad: 1rem;
+  padding-inline: var(--spread-outer-pad);
+  /* Center the two-page spread within the tab frame */
+  display: flex;
+  align-items: center;   /* vertical centering */
+  justify-content: center; /* horizontal centering */
+}
 
-/* Single center seam line */
-/* center seam disabled; use right page textarea left border instead */
+/* No container-level seam; pages meet cleanly */
 .book::after { display: none; }
 .book__page {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   min-height: 0;
-  height: 100%;
-  aspect-ratio: 210 / 297; /* A4 portrait width/height */
-  width: auto; /* let width derive from height and aspect-ratio */
+  height: auto;
   overflow: hidden;
   position: relative; /* anchor page numbers */
   box-sizing: border-box;
@@ -321,7 +326,7 @@ h1, h2, h3, h4, h5, h6 {
 /* Paper area inside each page (contains title + notes) */
 .book__paper {
   border: 2px solid #000;
-  height: 100%;
+  height: auto;
   display: flex;
   flex-direction: column;
   --paper-pad: 0.75rem;
@@ -331,8 +336,12 @@ h1, h2, h3, h4, h5, h6 {
   padding: var(--paper-pad); /* base padding; inner gutters handled by textarea */
   position: relative; /* anchor inner page number */
 }
-.book__page--left .book__paper { border-right-width: 0; }
-.book__page--right .book__paper { border-left-width: 2px; }
+/* Pages meet with a crisp 2px seam formed by two 1px inner borders */
+.book__page--left .book__paper { border-right-width: 1px; }
+.book__page--right .book__paper { border-left-width: 1px; }
+
+/* Ensure A4 proportion and width-driven sizing for crisp text */
+.book__paper { aspect-ratio: 210 / 297; width: var(--page-width, auto); }
 .book__page-header { font-size: 0.875rem; opacity: 0.8; text-align: center; margin: 0; padding: 0.25rem 0; }
 /* spine style retained for future use; no element currently rendered */
 .book__spine { display: none; }
@@ -378,7 +387,7 @@ h1, h2, h3, h4, h5, h6 {
 .book__index-empty { opacity: 0.7; }
 .book__index-list { list-style: none; padding: 0; margin: 0; }
 .book__index-list li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.15rem 0; }
-.book__index-label { flex: 1; }
+.book__index-label { flex: 1; text-align: left; }
 .book__index-page { width: 2.5rem; text-align: right; opacity: 0.8; }
 
 /* Page numbers */
@@ -528,3 +537,5 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Tight grid spacing helper for selection grids */
 .grid-tight { gap: 0.5rem; }
+
+/* NotesBook renders at natural size within PlayArea */
