@@ -37,17 +37,34 @@ $headers = @{
 }
 
 Write-Step "Ensuring GitHub repo '$GithubUser/$RepoName' exists (private: $isPrivate)"
-$createBody = @{ name = $RepoName; private = $isPrivate } | ConvertTo-Json
 
+# Check if repo already exists
+$repoExists = $false
 try {
-  $repo = Invoke-RestMethod -Method Post -Uri "https://api.github.com/user/repos" -Headers $headers -Body $createBody
-  Write-Ok "Created repo: $($repo.full_name)"
+  $check = Invoke-RestMethod -Method Get -Uri "https://api.github.com/repos/$GithubUser/$RepoName" -Headers $headers
+  if ($check.full_name) { $repoExists = $true }
+} catch {
+  $repoExists = $false
 }
-catch {
-  if ($_.Exception.Response -and $_.Exception.Response.StatusCode.value__ -eq 422) {
-    Write-Warn "Repo already exists. Proceeding."
-  } else {
-    throw
+
+if (-not $repoExists) {
+  $createBody = @{ name = $RepoName; private = $isPrivate } | ConvertTo-Json
+  try {
+    $repo = Invoke-RestMethod -Method Post -Uri "https://api.github.com/user/repos" -Headers $headers -Body $createBody
+    Write-Ok "Created repo: $($repo.full_name)"
+    $repoExists = $true
+  } catch {
+    if ($_.Exception.Response -and $_.Exception.Response.StatusCode.value__ -eq 422) {
+      Write-Warn "Repo already exists. Proceeding."
+      $repoExists = $true
+    } elseif ($_.Exception.Response -and $_.Exception.Response.StatusCode.value__ -eq 403) {
+      Write-Err "Token cannot create repositories (likely fine-grained or missing 'repo' scope)."
+      Write-Host "Create the repo manually here: https://github.com/new (name: '$RepoName')." -ForegroundColor Yellow
+      Write-Host "Then re-run this script, or run: git remote add origin https://github.com/$GithubUser/$RepoName.git; git push -u origin main" -ForegroundColor Yellow
+      exit 1
+    } else {
+      throw
+    }
   }
 }
 
@@ -76,4 +93,3 @@ if ($FriendUser -and $FriendUser.Trim() -ne '') {
 }
 
 Write-Ok "All done. Repo: https://github.com/$GithubUser/$RepoName"
-
