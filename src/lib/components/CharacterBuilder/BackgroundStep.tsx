@@ -36,7 +36,7 @@ const BackgroundStep: React.FC<BackgroundStepProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className="builder-step">
       <div>
         <h2 className=" mb-1">Choose Your Background</h2>
         <p className="text-muted mt-0">
@@ -45,7 +45,7 @@ const BackgroundStep: React.FC<BackgroundStepProps> = ({
         {/* Keep panel steady; no inline loading/error messages */}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-4 grid-tight">
         {backgrounds?.map((bg) => (
           <button
             key={bg.index}
@@ -102,7 +102,7 @@ const BackgroundStep: React.FC<BackgroundStepProps> = ({
         </div>
       )}
 
-      <div className="flex justify-between pt-4 mt-auto">
+      <div className="builder-footer">
         <button
           type="button"
           onClick={onPrevious}

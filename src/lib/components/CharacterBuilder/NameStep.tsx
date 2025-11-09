@@ -28,7 +28,7 @@ const NameStep: React.FC<NameStepProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className="builder-step">
       <div>
         <h2 className=" mb-1">What is your character's name?</h2>
         <p className="text-muted mt-0">
@@ -56,7 +56,7 @@ const NameStep: React.FC<NameStepProps> = ({
         />
       </div>
 
-      <div className="flex justify-between pt-4 mt-auto">
+      <div className="builder-footer">
         {onCancel ? (
           <button type="button" onClick={onCancel} className="btn-frame">
             Cancel

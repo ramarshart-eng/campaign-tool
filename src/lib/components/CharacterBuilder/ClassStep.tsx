@@ -49,7 +49,7 @@ const ClassStep: React.FC<ClassStepProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className="builder-step">
       <div>
         <h2 className=" mb-1">Choose Your Class</h2>
         <p className="text-muted mt-0">
@@ -58,7 +58,7 @@ const ClassStep: React.FC<ClassStepProps> = ({
         {/* Keep panel steady; no inline loading/error messages */}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 grid-tight">
         {classes?.map((cls) => (
           <button
             key={cls.index}
@@ -112,7 +112,7 @@ const ClassStep: React.FC<ClassStepProps> = ({
         </div>
       )}
 
-      <div className="flex justify-between pt-4 mt-auto">
+      <div className="builder-footer">
         <button
           type="button"
           onClick={onPrevious}

@@ -121,7 +121,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className="builder-step">
       <div>
         <h2 className=" mb-2">Select Your Equipment</h2>
         <p className="text-muted">
@@ -160,7 +160,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
       {/* Additional Common Items (included by default) */}
       <div>
         <h3 className=" mb-2">Additional Adventuring Gear (included)</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 grid-tight">
           {COMMON_ITEMS.map((item) => (
             <div key={item.id} className="frame pad-2">
               <div className="">{item.name}</div>
@@ -180,7 +180,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
         </div>
       </div>
 
-      <div className="flex justify-between pt-4 mt-auto">
+      <div className="builder-footer">
         <button
           type="button"
           onClick={onPrevious}
