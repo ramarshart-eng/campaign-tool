@@ -72,12 +72,19 @@ const ClassStep: React.FC<ClassStepProps> = ({
       {/* Class details */}
       {classDetails && (
         <div className="frame surface-muted pad-6">
-          <h3 className=" mb-4">{classDetails.name}</h3>
+          <h3 className=" mb-3">{classDetails.name}</h3>
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <span className="subheading">Hit Die:</span> 1d{classDetails.hit_die}
+            </div>
+
+            {classDetails.spellcasting && (
               <div>
-                <span className="subheading">Hit Die:</span> 1d{classDetails.hit_die}
+                <span className="subheading">Spellcasting Ability:</span>{" "}
+                {classDetails.spellcasting.spellcasting_ability.name}
               </div>
+            )}
 
             {classDetails.saving_throws && classDetails.saving_throws.length > 0 && (
               <div>
@@ -101,13 +108,6 @@ const ClassStep: React.FC<ClassStepProps> = ({
                     <li>...and {classDetails.proficiencies.length - 5} more</li>
                   )}
                 </ul>
-              </div>
-            )}
-
-            {classDetails.spellcasting && (
-              <div>
-                <span className="subheading">Spellcasting Ability:</span>{" "}
-                {classDetails.spellcasting.spellcasting_ability.name}
               </div>
             )}
           </div>

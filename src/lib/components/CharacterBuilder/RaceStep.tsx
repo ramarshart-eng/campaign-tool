@@ -72,16 +72,16 @@ const RaceStep: React.FC<RaceStepProps> = ({
       {/* Race details */}
       {raceDetails && (
         <div className="frame surface-muted pad-6">
-          <h3 className=" mb-4">{raceDetails.name}</h3>
+          <h3 className=" mb-3">{raceDetails.name}</h3>
 
-          <div className="space-y-3">
-              <div>
-                <span className="subheading">Speed:</span> {raceDetails.speed} ft.
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <span className="subheading">Speed:</span> {raceDetails.speed} ft.
+            </div>
 
-              <div>
-                <span className="subheading">Size:</span> {raceDetails.size}
-              </div>
+            <div>
+              <span className="subheading">Size:</span> {raceDetails.size}
+            </div>
 
             {raceDetails.ability_bonuses && raceDetails.ability_bonuses.length > 0 && (
               <div>

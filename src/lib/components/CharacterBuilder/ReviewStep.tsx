@@ -166,16 +166,13 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
 
         <div>
           <h4 className=" mb-2">Ability Scores</h4>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             {(Object.entries(finalAbilities) as Array<[keyof typeof finalAbilities, number]>).map(
               ([ability, score]) => (
-                <div key={ability} className="border border-black p-2 text-center">
-                  <div className="">{ability}</div>
-                  <div className="">{score}</div>
-                  <div className=" text-muted">
-                    {abilityMod(score) >= 0 ? "+" : ""}
-                    {abilityMod(score)}
-                  </div>
+                <div key={ability}>
+                  <span className="text-subtle">{ability}</span> {score} (
+                  {abilityMod(score) >= 0 ? "+" : ""}
+                  {abilityMod(score)})
                 </div>
               )
             )}

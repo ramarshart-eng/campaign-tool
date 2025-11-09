@@ -508,3 +508,15 @@ h1, h2, h3, h4, h5, h6 {
 }
 .book__nav-btn--prev::before { border-right: 8px solid #000; }
 .book__nav-btn--next::before { border-left: 8px solid #000; }
+
+/* Dense layout adjustments for the Character Builder */
+.builder-dense .frame { padding: 0.5rem; }
+.builder-dense .pad-6 { padding: 0.75rem; }
+.builder-dense .pad-4 { padding: 0.5rem; }
+.builder-dense .pad-3 { padding: 0.5rem; }
+.builder-dense .choice-card { padding: 0.5rem 0.75rem; }
+.builder-dense .choice-card .text-muted { font-size: 0.875rem; }
+.builder-dense .space-y-6 > * + * { margin-top: 1rem; }
+.builder-dense .space-y-4 > * + * { margin-top: 0.5rem; }
+.builder-dense .step-dot { width: 1.5rem; height: 1.5rem; }
+.builder-dense .text-sm { line-height: 1.25rem; }

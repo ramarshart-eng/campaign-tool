@@ -29,6 +29,7 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
   const [srdBackground, setSrdBackground] = useState<SRDBackground | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
 
   useEffect(() => {
     const index = state.selectedBackground?.index;
@@ -151,9 +152,18 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
     <div className="space-y-6">
       <div>
         <h2 className=" mb-1">Define Your Personality</h2>
-        <p className="text-muted mt-0">
+        <p className="text-muted mt-0 text-sm">
           Add or tweak your character's traits, ideals, bonds, and flaws. You can always edit these later on the Character tab.
         </p>
+        {(suggestions && (suggestions.traitOptions.length + suggestions.idealOptions.length + suggestions.bondOptions.length + suggestions.flawOptions.length) > 0) && (
+          <button
+            type="button"
+            className="btn-frame btn-frame--sm mt-2"
+            onClick={() => setShowSuggestions((v) => !v)}
+          >
+            {showSuggestions ? "Hide suggestions" : "Show suggestions"}
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -166,7 +176,7 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
             onChange={(e) => setTraits(e.target.value)}
             placeholder="Quirks, habits, mannerisms..."
           />
-          {suggestions && suggestions.traitOptions.length > 0 && (
+          {showSuggestions && suggestions && suggestions.traitOptions.length > 0 && (
             <div className="mt-2">
               <div className="text-sm mb-1">Suggestions (choose {suggestions.choose.traits}):</div>
               <div className="flex flex-wrap gap-2">
@@ -196,7 +206,7 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
             onChange={(e) => setIdeals(e.target.value)}
             placeholder="Beliefs or guiding principles..."
           />
-          {suggestions && suggestions.idealOptions.length > 0 && (
+          {showSuggestions && suggestions && suggestions.idealOptions.length > 0 && (
             <div className="mt-2">
               <div className="text-sm mb-1">Suggestions (choose {suggestions.choose.ideals}):</div>
               <div className="flex flex-wrap gap-2">
@@ -226,7 +236,7 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
             onChange={(e) => setBonds(e.target.value)}
             placeholder="People, places, or obligations..."
           />
-          {suggestions && suggestions.bondOptions.length > 0 && (
+          {showSuggestions && suggestions && suggestions.bondOptions.length > 0 && (
             <div className="mt-2">
               <div className="text-sm mb-1">Suggestions (choose {suggestions.choose.bonds}):</div>
               <div className="flex flex-wrap gap-2">
@@ -256,7 +266,7 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
             onChange={(e) => setFlaws(e.target.value)}
             placeholder="Weaknesses, vices, or tendencies..."
           />
-          {suggestions && suggestions.flawOptions.length > 0 && (
+          {showSuggestions && suggestions && suggestions.flawOptions.length > 0 && (
             <div className="mt-2">
               <div className="text-sm mb-1">Suggestions (choose {suggestions.choose.flaws}):</div>
               <div className="flex flex-wrap gap-2">
