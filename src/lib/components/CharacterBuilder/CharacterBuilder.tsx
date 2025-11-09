@@ -125,7 +125,7 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
     <div className="min-h-screen flex items-center justify-center bg-app p-4">
       <div className="w-full max-w-7xl border-2 border-black bg-white">
         {/* Progress indicator */}
-        <div className="p-4">
+        <div className="border-b-2 border-black p-4">
           <div className="flex justify-between items-center">
             <h1 className="">Character Builder</h1>
             <div className="flex gap-2">

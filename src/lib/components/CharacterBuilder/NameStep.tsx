@@ -30,8 +30,8 @@ const NameStep: React.FC<NameStepProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className=" mb-2">What is your character's name?</h2>
-        <p className="text-muted">
+        <h2 className=" mb-1">What is your character's name?</h2>
+        <p className="text-muted mt-0">
           This is the name your character will be known by throughout the campaign.
         </p>
       </div>

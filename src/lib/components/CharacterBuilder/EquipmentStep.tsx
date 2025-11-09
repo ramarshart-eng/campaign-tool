@@ -131,7 +131,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
 
       {/* Class Equipment */}
       <div>
-        <h3 className=" mb-3">
+        <h3 className=" mb-2">
           {state.selectedClass?.name} Starting Equipment
         </h3>
         <div className="frame surface-muted pad-4">
@@ -159,7 +159,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
 
       {/* Additional Common Items (included by default) */}
       <div>
-        <h3 className=" mb-3">Additional Adventuring Gear (included)</h3>
+        <h3 className=" mb-2">Additional Adventuring Gear (included)</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {COMMON_ITEMS.map((item) => (
             <div key={item.id} className="frame pad-3">

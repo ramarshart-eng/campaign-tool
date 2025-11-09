@@ -51,8 +51,8 @@ const RaceStep: React.FC<RaceStepProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className=" mb-2">Choose Your Race</h2>
-        <p className="text-muted">
+        <h2 className=" mb-1">Choose Your Race</h2>
+        <p className="text-muted mt-0">
           Your race determines your character's physical traits and special abilities.
         </p>
       </div>

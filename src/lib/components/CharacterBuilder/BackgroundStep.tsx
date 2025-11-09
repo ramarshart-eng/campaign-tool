@@ -50,8 +50,8 @@ const BackgroundStep: React.FC<BackgroundStepProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className=" mb-2">Choose Your Background</h2>
-        <p className="text-muted">
+        <h2 className=" mb-1">Choose Your Background</h2>
+        <p className="text-muted mt-0">
           Your background represents your character's history and provides additional skills and features.
         </p>
       </div>

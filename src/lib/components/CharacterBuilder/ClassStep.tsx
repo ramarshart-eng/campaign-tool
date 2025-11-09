@@ -51,8 +51,8 @@ const ClassStep: React.FC<ClassStepProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className=" mb-2">Choose Your Class</h2>
-        <p className="text-muted">
+        <h2 className=" mb-1">Choose Your Class</h2>
+        <p className="text-muted mt-0">
           Your class determines your combat abilities, skills, and role in the party.
         </p>
       </div>

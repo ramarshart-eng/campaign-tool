@@ -150,8 +150,8 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className=" mb-2">Define Your Personality</h2>
-        <p className="text-muted">
+        <h2 className=" mb-1">Define Your Personality</h2>
+        <p className="text-muted mt-0">
           Add or tweak your character's traits, ideals, bonds, and flaws. You can always edit these later on the Character tab.
         </p>
       </div>
