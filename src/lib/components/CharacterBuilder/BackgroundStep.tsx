@@ -56,7 +56,7 @@ const BackgroundStep: React.FC<BackgroundStepProps> = ({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         {backgrounds?.map((bg) => (
           <button
             key={bg.index}

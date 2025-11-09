@@ -160,20 +160,15 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
       {/* Additional Common Items (included by default) */}
       <div>
         <h3 className=" mb-3">Additional Adventuring Gear (included)</h3>
-        <div className="frame surface-muted pad-4">
-          <ul className="space-y-2">
-            {COMMON_ITEMS.map((item) => (
-              <li key={item.id} className="flex justify-between items-center">
-                <div>
-                  <span>{item.name}</span>
-                  {item.description && (
-                    <span className=" text-muted ml-2">- {item.description}</span>
-                  )}
-                </div>
-                {/* quantity shown in name when applicable */}
-              </li>
-            ))}
-          </ul>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {COMMON_ITEMS.map((item) => (
+            <div key={item.id} className="frame pad-3">
+              <div>{item.name}</div>
+              {item.description && (
+                <div className=" text-muted">{item.description}</div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 

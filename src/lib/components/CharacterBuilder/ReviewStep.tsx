@@ -193,7 +193,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
           <h4 className=" mb-2">Equipment</h4>
           <p className=" text-muted mb-1">Includes class starting equipment and standard adventuring gear.</p>
           {state.inventory && state.inventory.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-1">
               {state.inventory.map((it) => (
                 <div key={it.id}>
                   {it.name}
