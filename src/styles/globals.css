@@ -519,4 +519,3 @@ h1, h2, h3, h4, h5, h6 {
 .builder-dense .space-y-6 > * + * { margin-top: 1rem; }
 .builder-dense .space-y-4 > * + * { margin-top: 0.5rem; }
 .builder-dense .step-dot { width: 1.5rem; height: 1.5rem; }
-.builder-dense .text-sm { line-height: 1.25rem; }

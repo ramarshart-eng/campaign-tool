@@ -36,18 +36,6 @@ const ClassStep: React.FC<ClassStepProps> = ({
     }
   };
 
-  if (loading) {
-    return <div className="text-center py-8">Loading classes...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-8 text-danger">
-        Error loading classes: {error.message}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -55,9 +43,13 @@ const ClassStep: React.FC<ClassStepProps> = ({
         <p className="text-muted mt-0">
           Your class determines your combat abilities, skills, and role in the party.
         </p>
+        {loading && <div className="mt-1">Loading classes...</div>}
+        {error && (
+          <div className="mt-1 text-danger">Error loading classes: {error.message}</div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
         {classes?.map((cls) => (
           <button
             key={cls.index}

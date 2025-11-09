@@ -153,7 +153,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
         <div>
           <h3 className="">{state.name}</h3>
           <p className=" text-muted">Level 1 {state.selectedRace.name} {state.selectedClass.name}</p>
-          <p className=" text-sm mt-1">
+          <p className=" mt-1">
             <span className="text-subtle">Race:</span> {state.selectedRace.name}
             <span className="mx-2">•</span>
             <span className="text-subtle">Class:</span> {state.selectedClass.name}
@@ -166,7 +166,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
 
         <div>
           <h4 className=" mb-2">Ability Scores</h4>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
             {(Object.entries(finalAbilities) as Array<[keyof typeof finalAbilities, number]>).map(
               ([ability, score]) => (
                 <div key={ability}>

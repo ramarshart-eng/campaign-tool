@@ -35,18 +35,6 @@ const BackgroundStep: React.FC<BackgroundStepProps> = ({
     }
   };
 
-  if (loading) {
-    return <div className="text-center py-8">Loading backgrounds...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-8 text-danger">
-        Error loading backgrounds: {error.message}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -54,9 +42,13 @@ const BackgroundStep: React.FC<BackgroundStepProps> = ({
         <p className="text-muted mt-0">
           Your background represents your character's history and provides additional skills and features.
         </p>
+        {loading && <div className="mt-1">Loading backgrounds...</div>}
+        {error && (
+          <div className="mt-1 text-danger">Error loading backgrounds: {error.message}</div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
         {backgrounds?.map((bg) => (
           <button
             key={bg.index}

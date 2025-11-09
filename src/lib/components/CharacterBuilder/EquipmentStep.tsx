@@ -165,7 +165,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
             <div key={item.id} className="frame pad-2">
               <div className="">{item.name}</div>
               {item.description && (
-                <div className=" text-sm text-muted">{item.description}</div>
+                <div className=" text-muted">{item.description}</div>
               )}
             </div>
           ))}

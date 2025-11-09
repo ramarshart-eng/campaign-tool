@@ -36,18 +36,6 @@ const RaceStep: React.FC<RaceStepProps> = ({
     }
   };
 
-  if (loading) {
-    return <div className="text-center py-8">Loading races...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-8 text-danger">
-        Error loading races: {error.message}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -55,9 +43,13 @@ const RaceStep: React.FC<RaceStepProps> = ({
         <p className="text-muted mt-0">
           Your race determines your character's physical traits and special abilities.
         </p>
+        {loading && <div className="mt-1">Loading races...</div>}
+        {error && (
+          <div className="mt-1 text-danger">Error loading races: {error.message}</div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
         {races?.map((race) => (
           <button
             key={race.index}
