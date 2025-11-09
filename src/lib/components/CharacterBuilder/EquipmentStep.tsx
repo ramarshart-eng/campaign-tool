@@ -180,10 +180,7 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
               <button
                 key={item.id}
                 onClick={() => handleToggleCommonItem(item)}
-                className={`frame pad-3 text-left transition-colors hover-muted ${
-                  isSelected
-                    ? "" : ""
-                }`}
+                className={`choice-card text-left ${isSelected ? "is-active" : ""}`}
               >
                 <div className="">{item.name}</div>
                 <div className=" opacity-80">{item.description}</div>
