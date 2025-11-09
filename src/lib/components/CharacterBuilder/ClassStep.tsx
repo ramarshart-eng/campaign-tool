@@ -43,10 +43,7 @@ const ClassStep: React.FC<ClassStepProps> = ({
         <p className="text-muted mt-0">
           Your class determines your combat abilities, skills, and role in the party.
         </p>
-        {loading && <div className="mt-1">Loading classes...</div>}
-        {error && (
-          <div className="mt-1 text-danger">Error loading classes: {error.message}</div>
-        )}
+        {/* Keep panel steady; no inline loading/error messages */}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">

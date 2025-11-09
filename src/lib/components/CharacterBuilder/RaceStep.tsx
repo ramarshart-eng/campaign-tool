@@ -43,10 +43,7 @@ const RaceStep: React.FC<RaceStepProps> = ({
         <p className="text-muted mt-0">
           Your race determines your character's physical traits and special abilities.
         </p>
-        {loading && <div className="mt-1">Loading races...</div>}
-        {error && (
-          <div className="mt-1 text-danger">Error loading races: {error.message}</div>
-        )}
+        {/* Keep panel steady; no inline loading/error messages */}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
