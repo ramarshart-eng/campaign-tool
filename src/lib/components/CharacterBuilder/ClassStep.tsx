@@ -13,6 +13,7 @@ interface ClassStepProps {
   onNext: () => void;
   onPrevious: () => void;
   classesPrefetch?: APIReference[];
+  classDetailsPrefetch?: any;
 }
 
 const ClassStep: React.FC<ClassStepProps> = ({
@@ -21,6 +22,7 @@ const ClassStep: React.FC<ClassStepProps> = ({
   onNext,
   onPrevious,
   classesPrefetch,
+  classDetailsPrefetch,
 }) => {
   const hook = useClasses();
   const classes = classesPrefetch ?? hook.data;
@@ -29,7 +31,11 @@ const ClassStep: React.FC<ClassStepProps> = ({
   const [selectedIndex, setSelectedIndex] = useState<string | null>(
     state.selectedClass?.index || null
   );
-  const { data: classDetails } = useClass(selectedIndex);
+  const hookDetail = useClass(selectedIndex);
+  const classDetails =
+    classDetailsPrefetch && selectedIndex === state.selectedClass?.index
+      ? (classDetailsPrefetch as any)
+      : hookDetail.data;
 
   const handleSelect = (index: string) => {
     setSelectedIndex(index);

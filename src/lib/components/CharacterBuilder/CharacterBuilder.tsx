@@ -15,7 +15,7 @@ import EquipmentStep from "./EquipmentStep";
 import ReviewStep from "./ReviewStep";
 import type { Item } from "@/lib/types/Item";
 import PersonalityStep from "./PersonalityStep";
-import { getRaces, getClasses, getBackground as fetchSRDBackground } from "@/lib/api/srd";
+import { getRaces, getClasses, getBackground as fetchSRDBackground, getRace, getClass } from "@/lib/api/srd";
 import type { APIReference } from "@/lib/types/SRD";
 
 export type BuilderStep =
@@ -62,6 +62,8 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
   const [currentStep, setCurrentStep] = useState<BuilderStep>("name");
   const [racesCache, setRacesCache] = useState<APIReference[] | null>(null);
   const [classesCache, setClassesCache] = useState<APIReference[] | null>(null);
+  const [raceDetailCache, setRaceDetailCache] = useState<any | null>(null);
+  const [classDetailCache, setClassDetailCache] = useState<any | null>(null);
   const [builderState, setBuilderState] = useState<CharacterBuilderState>({
     name: "",
     selectedRace: null,
@@ -92,9 +94,25 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
       if (step === "race") {
         const res = await getRaces();
         setRacesCache(res.results);
+        if (builderState.selectedRace?.index) {
+          try {
+            const detail = await getRace(builderState.selectedRace.index);
+            setRaceDetailCache(detail);
+          } catch {}
+        } else {
+          setRaceDetailCache(null);
+        }
       } else if (step === "class") {
         const res = await getClasses();
         setClassesCache(res.results);
+        if (builderState.selectedClass?.index) {
+          try {
+            const detail = await getClass(builderState.selectedClass.index);
+            setClassDetailCache(detail);
+          } catch {}
+        } else {
+          setClassDetailCache(null);
+        }
       } else if (step === "personality") {
         const idx = builderState.selectedBackground?.index;
         if (idx) {
@@ -192,6 +210,7 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
               onNext={nextStep}
               onPrevious={previousStep}
               racesPrefetch={racesCache ?? undefined}
+              raceDetailsPrefetch={raceDetailCache ?? undefined}
             />
           )}
           {currentStep === "class" && (
@@ -201,6 +220,7 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
               onNext={nextStep}
               onPrevious={previousStep}
               classesPrefetch={classesCache ?? undefined}
+              classDetailsPrefetch={classDetailCache ?? undefined}
             />
           )}
           {currentStep === "abilities" && (

@@ -13,6 +13,7 @@ interface RaceStepProps {
   onNext: () => void;
   onPrevious: () => void;
   racesPrefetch?: APIReference[];
+  raceDetailsPrefetch?: any;
 }
 
 const RaceStep: React.FC<RaceStepProps> = ({
@@ -21,6 +22,7 @@ const RaceStep: React.FC<RaceStepProps> = ({
   onNext,
   onPrevious,
   racesPrefetch,
+  raceDetailsPrefetch,
 }) => {
   const hook = useRaces();
   const races = racesPrefetch ?? hook.data;
@@ -29,7 +31,11 @@ const RaceStep: React.FC<RaceStepProps> = ({
   const [selectedIndex, setSelectedIndex] = useState<string | null>(
     state.selectedRace?.index || null
   );
-  const { data: raceDetails } = useRace(selectedIndex);
+  const hookDetail = useRace(selectedIndex);
+  const raceDetails =
+    raceDetailsPrefetch && selectedIndex === state.selectedRace?.index
+      ? (raceDetailsPrefetch as any)
+      : hookDetail.data;
 
   const handleSelect = (index: string) => {
     setSelectedIndex(index);
