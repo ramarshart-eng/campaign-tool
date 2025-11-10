@@ -228,12 +228,12 @@ const NotesBook: React.FC = () => {
           <div className="book__content">
             {isIndex ? (
               <>
-                <div className="book__title" style={{ textAlign: 'left' }}>Index</div>
+                <div className="book__title">Index</div>
                 {/* Categories input sits directly under Index title */}
-                <div className="mt-1" style={{ display: 'flex', gap: '0.5rem' }}>
+                <div className="book__index-bar mt-1">
                   <input
                     type="text"
-                    className="book__title-input"
+                    className="book__title-input book__title-input--grow"
                     placeholder="New category (use '>' for subcategories)"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -243,32 +243,46 @@ const NotesBook: React.FC = () => {
                       }
                     }}
                     aria-label="Add category"
-                    style={{ flex: 1 }}
                   />
                 </div>
                 {/* Categories tree with pages under each category */}
+
                 <div className="book__index">
                   {(() => {
                     const { roots, uncategorized } = buildTree();
                     const goTo = (idx: number) => setSpreadStart(idx & ~1);
                     const renderNode = (node: CatNode, depth: number): React.ReactNode => (
-                      <>
-                        <li key={`cat-${node.path}`} style={{ paddingLeft: `${depth}rem`, display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                      <React.Fragment key={`node-${node.path}`}>
+                        <li
+                          className="book__index-row book__indent"
+                          style={{ '--index-depth': depth } as IndexStyle}
+                        >
                           <div>
                             {node.children.length > 0 || node.pages.length > 0 ? (
                               <button type="button" className="book__index-label" onClick={() => toggle(node.path)}>
-                                {expanded[node.path] ? '▼' : '▶'} {node.name}
+                                {expanded[node.path] ? '?' : '?'} {node.name}
                               </button>
                             ) : (
                               <span className="book__index-label">{node.name}</span>
                             )}
                           </div>
-                          <button type="button" className="book__index-page" onClick={() => deleteCategory(node.path)} aria-label={`Delete ${node.path}`}>✕</button>
+                          <button
+                            type="button"
+                            className="book__index-page btn-icon"
+                            onClick={() => deleteCategory(node.path)}
+                            aria-label={`Delete ${node.path}`}
+                          >
+                            ?
+                          </button>
                         </li>
                         {expanded[node.path] && (
                           <>
                             {node.pages.map(({ idx, t }) => (
-                              <li key={`page-${idx}`} style={{ paddingLeft: `${depth + 1}rem`, display: 'flex', justifyContent: 'space-between' }}>
+                              <li
+                                key={`page-${idx}`}
+                                className="book__index-row book__indent"
+                                style={{ '--index-depth': depth + 1 } as IndexStyle}
+                              >
                                 <button type="button" className="book__index-label" onClick={() => goTo(idx)}>{t}</button>
                                 <button type="button" className="book__index-page" onClick={() => goTo(idx)}>{idx}</button>
                               </li>
@@ -276,19 +290,23 @@ const NotesBook: React.FC = () => {
                             {node.children.map((child) => renderNode(child, depth + 1))}
                           </>
                         )}
-                      </>
+                      </React.Fragment>
                     );
                     return (
                       <ul className="book__index-list">
                         {roots.map((n) => renderNode(n, 0))}
                         {uncategorized.length > 0 && (
                           <>
-                            <li style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <li className="book__index-row">
                               <span className="book__index-label">Uncategorized</span>
                               <span className="book__index-page">&nbsp;</span>
                             </li>
                             {uncategorized.map(({ idx, t }) => (
-                              <li key={`uncat-${idx}`} style={{ paddingLeft: '1rem', display: 'flex', justifyContent: 'space-between' }}>
+                              <li
+                                key={`uncat-${idx}`}
+                                className="book__index-row book__indent"
+                                style={{ '--index-depth': 1 } as IndexStyle}
+                              >
                                 <button type="button" className="book__index-label" onClick={() => goTo(idx)}>{t}</button>
                                 <button type="button" className="book__index-page" onClick={() => goTo(idx)}>{idx}</button>
                               </li>
@@ -302,22 +320,20 @@ const NotesBook: React.FC = () => {
               </>
             ) : (
               <>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <div className="book__index-bar">
                   <input
                     type="text"
-                    className="book__title-input"
+                    className="book__title-input book__title-input--grow"
                     value={titleValue}
                     placeholder="Title"
                     onChange={(e) => setPageTitle(pageIndex, e.target.value)}
                     aria-label={`Page ${pageIndex + 1} title`}
-                    style={{ flex: 1 }}
                   />
                   <select
-                    className="book__title-input"
+                    className="book__title-input min-w-40"
                     aria-label={`Category for page ${pageIndex + 1}`}
                     value={catSel[pageIndex] ?? ''}
                     onChange={(e) => setPageCategory(pageIndex, e.target.value)}
-                    style={{ minWidth: '10rem' }}
                   >
                     <option value="">No category</option>
                     {normalizedCatList.map((c) => (
@@ -346,6 +362,7 @@ const NotesBook: React.FC = () => {
 
   // allow custom CSS variables on style (e.g., --page-width)
   type PageStyle = React.CSSProperties & { ['--page-width']?: string };
+  type IndexStyle = React.CSSProperties & { ['--index-depth']?: number };
 
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
 

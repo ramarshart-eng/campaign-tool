@@ -31,6 +31,7 @@ export interface Character {
   id: string;
   name: string;
   className: string;
+  classBreakdown?: { name: string; level: number }[];
   raceName?: string;
   level: number;
   proficiencyBonus: number;
@@ -60,6 +61,18 @@ export interface Character {
   bonds?: string; // free-form text
   flaws?: string; // free-form text
   features?: string[]; // notable features/feats/background features
+  feats?: string[];
+  spellcasting?: {
+    classes: Array<{
+      className: string;
+      ability: keyof AbilityScores;
+      cantrips: string[];
+      known?: string[];
+      prepared: string[];
+      saveDC: number;
+      attackBonus: number;
+    }>;
+  };
   // Player notes (3 columns in Notes tab)
   notes?: string[]; // length 3 preferred
   // Optional titles per notes page (same index as notes pages)

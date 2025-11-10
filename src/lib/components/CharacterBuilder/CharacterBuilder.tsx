@@ -8,7 +8,7 @@ import type { SRDRace, SRDClass } from "@/lib/types/SRD";
 import type { LocalBackground } from "@/lib/data/backgrounds";
 import NameStep from "./NameStep";
 import RaceStep from "./RaceStep";
-import ClassStep from "./ClassStep";
+import ClassLevelsStep from "./ClassLevelsStep";
 import AbilityScoresStep from "./AbilityScoresStep";
 import BackgroundStep from "./BackgroundStep";
 import EquipmentStep from "./EquipmentStep";
@@ -17,22 +17,53 @@ import type { Item } from "@/lib/types/Item";
 import PersonalityStep from "./PersonalityStep";
 import { getRaces, getClasses, getBackground as fetchSRDBackground, getRace, getClass } from "@/lib/api/srd";
 import type { APIReference } from "@/lib/types/SRD";
+import AdvancementStep from "./AdvancementStep";
+import SpellsStep from "./SpellsStep";
+import type { AdvancementChoice, AdvancementMap } from "@/lib/types/advancement";
 
 export type BuilderStep =
   | "name"
   | "race"
   | "class"
   | "abilities"
+  | "advancement"
+  | "spells"
   | "background"
   | "personality"
   | "equipment"
   | "review";
 
+const BUILDER_STEPS: BuilderStep[] = [
+  "name",
+  "race",
+  "class",
+  "abilities",
+  "advancement",
+  "spells",
+  "background",
+  "personality",
+  "equipment",
+  "review",
+];
+
+export interface ClassSelection {
+  classRef: SRDClass | null;
+  level: number;
+}
+
+export interface SpellcastingChoice {
+  cantrips: string[];
+  known?: string[];
+  prepared: string[];
+}
+
 export interface CharacterBuilderState {
   name: string;
   selectedRace: SRDRace | null;
   selectedClass: SRDClass | null;
+  classSelections: ClassSelection[];
   selectedBackground: LocalBackground | null;
+  level: number;
   abilityScores: {
     STR: number;
     DEX: number;
@@ -43,6 +74,9 @@ export interface CharacterBuilderState {
   };
   selectedSkills: string[];
   inventory: Item[];
+  allowFeats: boolean;
+  advancements: AdvancementMap;
+  spellcastingChoices: Record<string, SpellcastingChoice>;
   // Narrative fields
   personalityTraits: string;
   ideals: string;
@@ -68,7 +102,9 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
     name: "",
     selectedRace: null,
     selectedClass: null,
+    classSelections: [{ classRef: null, level: 1 }],
     selectedBackground: null,
+    level: 1,
     abilityScores: {
       STR: 10,
       DEX: 10,
@@ -79,6 +115,9 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
     },
     selectedSkills: [],
     inventory: [],
+    allowFeats: false,
+    advancements: {},
+    spellcastingChoices: {},
     personalityTraits: "",
     ideals: "",
     bonds: "",
@@ -125,38 +164,18 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
   };
 
   const nextStep = async () => {
-    const steps: BuilderStep[] = [
-      "name",
-      "race",
-      "class",
-      "abilities",
-      "background",
-      "personality",
-      "equipment",
-      "review",
-    ];
-    const currentIndex = steps.indexOf(currentStep);
-    if (currentIndex < steps.length - 1) {
-      const target = steps[currentIndex + 1];
+    const currentIndex = BUILDER_STEPS.indexOf(currentStep);
+    if (currentIndex < BUILDER_STEPS.length - 1) {
+      const target = BUILDER_STEPS[currentIndex + 1];
       await preloadStep(target);
       setCurrentStep(target);
     }
   };
 
   const previousStep = async () => {
-    const steps: BuilderStep[] = [
-      "name",
-      "race",
-      "class",
-      "abilities",
-      "background",
-      "personality",
-      "equipment",
-      "review",
-    ];
-    const currentIndex = steps.indexOf(currentStep);
+    const currentIndex = BUILDER_STEPS.indexOf(currentStep);
     if (currentIndex > 0) {
-      const target = steps[currentIndex - 1];
+      const target = BUILDER_STEPS[currentIndex - 1];
       await preloadStep(target);
       setCurrentStep(target);
     }
@@ -174,9 +193,8 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
           <div className="flex justify-between items-center">
             <h1 className="">Character Builder</h1>
             <div className="flex gap-2">
-              {["name", "race", "class", "abilities", "background", "personality", "equipment", "review"].map((step, index) => {
-                const steps: BuilderStep[] = ["name", "race", "class", "abilities", "background", "equipment", "review"];
-                const currentIndex = steps.indexOf(currentStep);
+              {BUILDER_STEPS.map((step, index) => {
+                const currentIndex = BUILDER_STEPS.indexOf(currentStep);
                 const isActive = step === currentStep;
                 const isComplete = index < currentIndex;
 
@@ -214,7 +232,7 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
             />
           )}
           {currentStep === "class" && (
-            <ClassStep
+            <ClassLevelsStep
               state={builderState}
               updateState={updateState}
               onNext={nextStep}
@@ -225,6 +243,22 @@ const CharacterBuilder: React.FC<CharacterBuilderProps> = ({
           )}
           {currentStep === "abilities" && (
             <AbilityScoresStep
+              state={builderState}
+              updateState={updateState}
+              onNext={nextStep}
+              onPrevious={previousStep}
+            />
+          )}
+          {currentStep === "advancement" && (
+            <AdvancementStep
+              state={builderState}
+              updateState={updateState}
+              onNext={nextStep}
+              onPrevious={previousStep}
+            />
+          )}
+          {currentStep === "spells" && (
+            <SpellsStep
               state={builderState}
               updateState={updateState}
               onNext={nextStep}
