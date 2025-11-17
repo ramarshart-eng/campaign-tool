@@ -253,7 +253,7 @@ const AdvancementStep: React.FC<AdvancementStepProps> = ({
         </label>
         {asiLevels.length === 0 ? (
           <p className="text-muted text-sm">
-            You won't gain ability score improvements until higher levels. Increase your class levels first to unlock these choices.
+            You won&rsquo;t gain ability score improvements until higher levels. Increase your class levels first to unlock these choices.
           </p>
         ) : (
           <div className="space-y-3">

@@ -2,38 +2,45 @@
  * Step 1: Character Name Input
  */
 
-import React, { useState } from "react";
+import React from "react";
 import type { CharacterBuilderState } from "./CharacterBuilder";
 
 interface NameStepProps {
   state: CharacterBuilderState;
   updateState: (updates: Partial<CharacterBuilderState>) => void;
-  onNext: () => void;
   onCancel?: () => void;
 }
 
 const NameStep: React.FC<NameStepProps> = ({
   state,
   updateState,
-  onNext,
   onCancel,
 }) => {
-  const [localName, setLocalName] = useState(state.name);
+  const handleChange = (value: string) => {
+    updateState({ name: value });
+  };
 
-  const handleNext = () => {
-    if (localName.trim()) {
-      updateState({ name: localName.trim() });
-      onNext();
+  const handleBlur = () => {
+    const trimmed = state.name.trim();
+    if (trimmed !== state.name) {
+      updateState({ name: trimmed });
     }
   };
 
   return (
     <div className="builder-step">
-      <div>
-        <h2 className=" mb-1">What is your character's name?</h2>
-        <p className="text-muted mt-0">
-          This is the name your character will be known by throughout the campaign.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className=" mb-1">What is your character&rsquo;s name?</h2>
+          <p className="text-muted mt-0">
+            This is the name your character will be known by throughout the campaign.
+          </p>
+        </div>
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="btn-frame">
+            Cancel
+          </button>
+        )}
       </div>
 
       <div>
@@ -43,35 +50,13 @@ const NameStep: React.FC<NameStepProps> = ({
         <input
           id="character-name"
           type="text"
-          value={localName}
-          onChange={(e) => setLocalName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && localName.trim()) {
-              handleNext();
-            }
-          }}
+          value={state.name}
+          onChange={(e) => handleChange(e.target.value)}
+          onBlur={handleBlur}
           className="w-full input-frame"
           placeholder="Enter character name..."
           autoFocus
         />
-      </div>
-
-      <div className="builder-footer">
-        {onCancel ? (
-          <button type="button" onClick={onCancel} className="btn-frame">
-            Cancel
-          </button>
-        ) : (
-          <div />
-        )}
-        <button
-          type="button"
-          onClick={handleNext}
-          disabled={!localName.trim()}
-          className={`btn-frame ${!localName.trim() ? "btn-disabled" : ""}`}
-        >
-          Next
-        </button>
       </div>
     </div>
   );

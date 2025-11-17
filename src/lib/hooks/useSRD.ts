@@ -3,13 +3,7 @@
  */
 
 import { useState, useEffect } from "react";
-import {
-  getRaces,
-  getRace,
-  getClasses,
-  getClass,
-  SRDApiError,
-} from "@/lib/api/srd";
+import { getRaces, getRace, getClasses, getClass } from "@/lib/api/srd";
 import type { SRDRace, SRDClass, APIReference } from "@/lib/types/SRD";
 import { getAllBackgrounds, getBackgroundByIndex, type LocalBackground } from "@/lib/data/backgrounds";
 

@@ -4,13 +4,15 @@ import type { APIReference, SRDClass } from "@/lib/types/SRD";
 import { useClasses } from "@/lib/hooks/useSRD";
 import { getClass, getClassSpells } from "@/lib/api/srd";
 import { abilityMod } from "@/lib/rules/computeModifiers";
-import { estimateHitPoints, getProficiencyBonus, getTotalLevel } from "@/lib/rules/derivedStats";
+import {
+  estimateHitPoints,
+  getProficiencyBonus,
+  getTotalLevel,
+} from "@/lib/rules/derivedStats";
 
 interface ClassLevelsStepProps {
   state: CharacterBuilderState;
   updateState: (updates: Partial<CharacterBuilderState>) => void;
-  onNext: () => void;
-  onPrevious: () => void;
   classesPrefetch?: APIReference[];
   classDetailsPrefetch?: SRDClass;
 }
@@ -25,8 +27,6 @@ const ensureSelections = (state: CharacterBuilderState): ClassSelection[] => {
 const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
   state,
   updateState,
-  onNext,
-  onPrevious,
   classesPrefetch,
   classDetailsPrefetch,
 }) => {
@@ -39,7 +39,9 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
   const classCache = useRef<Record<string, SRDClass>>({});
-  const [spellsCache, setSpellsCache] = useState<Record<string, { name: string; level: number }[]>>({});
+  const [spellsCache, setSpellsCache] = useState<
+    Record<string, { index: string; name: string; level: number }[]>
+  >({});
 
   useEffect(() => {
     if (classDetailsPrefetch?.index) {
@@ -58,7 +60,8 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const activeSelection = selections[Math.min(activeIndex, selections.length - 1)];
+  const activeSelection =
+    selections[Math.min(activeIndex, selections.length - 1)];
   const totalLevel = getTotalLevel(selections);
   const conMod = abilityMod(state.abilityScores.CON);
   const hpEstimate = estimateHitPoints(selections, conMod);
@@ -128,7 +131,11 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
     try {
       const response = await getClassSpells(classIndex);
       const spells =
-        response.results?.map((spell) => ({ name: spell.name, level: spell.level ?? 0 })) ?? [];
+        response.results?.map((spell) => ({
+          index: spell.index,
+          name: spell.name,
+          level: spell.level ?? 0,
+        })) ?? [];
       setSpellsCache((prev) => ({ ...prev, [classIndex]: spells }));
       return spells;
     } catch {
@@ -161,7 +168,6 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
       .join(" / ");
   }, [selections]);
 
-  const canProceed = selections.some((sel) => sel.classRef && sel.level > 0);
   const activeClassSpells = useMemo(() => {
     if (!activeSelection?.classRef) return [];
     const all = spellsCache[activeSelection.classRef.index] || [];
@@ -174,7 +180,8 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
       <div>
         <h2 className=" mb-1">Choose Classes & Levels</h2>
         <p className="text-muted mt-0">
-          Assign your character&apos;s classes and levels. You can add additional classes later for multiclassing.
+          Assign your character&apos;s classes and levels. You can add
+          additional classes later for multiclassing.
         </p>
       </div>
 
@@ -184,14 +191,22 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
             <button
               type="button"
               key={`sel-${idx}-${sel.classRef?.index ?? "empty"}`}
-              className={`choice-chip ${idx === activeIndex ? "is-active" : ""}`}
+              className={`choice-chip ${
+                idx === activeIndex ? "is-active" : ""
+              }`}
               onClick={() => setActiveIndex(idx)}
             >
-              {sel.classRef ? `${sel.classRef.name} ${sel.level}` : `Class ${idx + 1}`}
+              {sel.classRef
+                ? `${sel.classRef.name} ${sel.level}`
+                : `Class ${idx + 1}`}
             </button>
           ))}
           {selections.length < 4 && totalLevel < 20 && (
-            <button type="button" className="choice-chip" onClick={handleAddClass}>
+            <button
+              type="button"
+              className="choice-chip"
+              onClick={handleAddClass}
+            >
               + Add Class
             </button>
           )}
@@ -200,18 +215,27 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
         {activeSelection && (
           <div className="flex flex-wrap items-center gap-3">
             <div className="text-sm text-subtle">
-              Levels in {activeSelection.classRef ? activeSelection.classRef.name : "Selected Class"}
+              Levels in{" "}
+              {activeSelection.classRef
+                ? activeSelection.classRef.name
+                : "Selected Class"}
             </div>
             <input
               type="number"
               min={1}
               max={20}
               value={activeSelection.level}
-              onChange={(e) => handleLevelChange(activeIndex, parseInt(e.target.value, 10))}
+              onChange={(e) =>
+                handleLevelChange(activeIndex, parseInt(e.target.value, 10))
+              }
               className="input-frame w-24"
             />
             {activeIndex > 0 && (
-              <button type="button" className="btn-frame btn-frame--sm" onClick={() => handleRemoveClass(activeIndex)}>
+              <button
+                type="button"
+                className="btn-frame btn-frame--sm"
+                onClick={() => handleRemoveClass(activeIndex)}
+              >
                 Remove
               </button>
             )}
@@ -223,10 +247,12 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
             <span className="text-subtle">Total Level:</span> {totalLevel}
           </div>
           <div>
-            <span className="text-subtle">Proficiency Bonus:</span> +{getProficiencyBonus(totalLevel)}
+            <span className="text-subtle">Proficiency Bonus:</span> +
+            {getProficiencyBonus(totalLevel)}
           </div>
           <div>
-            <span className="text-subtle">HP Estimate:</span> {hpEstimate.total > 0 ? `${hpEstimate.total} HP` : "-"}
+            <span className="text-subtle">HP Estimate:</span>{" "}
+            {hpEstimate.total > 0 ? `${hpEstimate.total} HP` : "-"}
           </div>
         </div>
         {summaryLabel && (
@@ -236,16 +262,28 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
 
       <div className="mt-4 space-y-2">
         <h3 className=" text-base">Select a Class</h3>
-        {selectionError && <div className="text-danger text-sm">{selectionError}</div>}
+        {selectionError && (
+          <div className="text-danger text-sm">{selectionError}</div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-4 grid-tight">
-          {loading && <div className="text-subtle col-span-2">Loading classes...</div>}
-          {error && <div className="text-danger col-span-2">Failed to load classes.</div>}
+          {loading && (
+            <div className="text-subtle col-span-2">Loading classes...</div>
+          )}
+          {error && (
+            <div className="text-danger col-span-2">
+              Failed to load classes.
+            </div>
+          )}
           {classes?.map((cls) => (
             <button
               key={cls.index}
               onClick={() => handleSelectClass(cls.index)}
               disabled={assigning}
-              className={`choice-card ${activeSelection?.classRef?.index === cls.index ? "is-active" : ""}`}
+              className={`choice-card ${
+                activeSelection?.classRef?.index === cls.index
+                  ? "is-active"
+                  : ""
+              }`}
             >
               <div>{cls.name}</div>
             </button>
@@ -258,22 +296,31 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
           <h3 className=" mb-3">{activeSelection.classRef.name}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
             <div>
-              <span className="subheading">Hit Die:</span> 1d{activeSelection.classRef.hit_die}
+              <span className="subheading">Hit Die:</span> 1d
+              {activeSelection.classRef.hit_die}
             </div>
             {activeSelection.classRef.spellcasting && (
               <div>
-                <span className="subheading">Spellcasting Ability:</span> {activeSelection.classRef.spellcasting.spellcasting_ability.name}
+                <span className="subheading">Spellcasting Ability:</span>{" "}
+                {
+                  activeSelection.classRef.spellcasting.spellcasting_ability
+                    .name
+                }
               </div>
             )}
-            {activeSelection.classRef.proficiencies && activeSelection.classRef.proficiencies.length > 0 && (
-              <div>
-                <span className="subheading">Proficiencies:</span>
-                <span className="ml-1 block md:inline">
-                  {activeSelection.classRef.proficiencies.map((prof) => prof.name).join(", ")}
-                </span>
-              </div>
-            )}
-            {(activeClassSpells.length > 0 || activeSelection.classRef.spellcasting) && (
+            {activeSelection.classRef.proficiencies &&
+              activeSelection.classRef.proficiencies.length > 0 && (
+                <div>
+                  <span className="subheading">Proficiencies:</span>
+                  <span className="ml-1 block md:inline">
+                    {activeSelection.classRef.proficiencies
+                      .map((prof) => prof.name)
+                      .join(", ")}
+                  </span>
+                </div>
+              )}
+            {(activeClassSpells.length > 0 ||
+              activeSelection.classRef.spellcasting) && (
               <div>
                 <span className="subheading">Class Spells:</span>
                 <span className="ml-1 block md:inline">
@@ -284,7 +331,9 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
                           .map((spell) => spell.name)
                           .join(", ");
                         const extra = activeClassSpells.length - 6;
-                        return extra > 0 ? `${preview} (+${extra} more)` : preview;
+                        return extra > 0
+                          ? `${preview} (+${extra} more)`
+                          : preview;
                       })()
                     : "See spell list in class details."}
                 </span>
@@ -293,15 +342,6 @@ const ClassLevelsStep: React.FC<ClassLevelsStepProps> = ({
           </div>
         </div>
       )}
-
-      <div className="builder-footer">
-        <button type="button" onClick={onPrevious} className="btn-frame btn-frame--lg">
-          Previous
-        </button>
-        <button type="button" onClick={onNext} disabled={!canProceed} className={`btn-frame ${!canProceed ? "btn-disabled" : ""}`}>
-          Next
-        </button>
-      </div>
     </div>
   );
 };

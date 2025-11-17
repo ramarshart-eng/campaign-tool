@@ -266,6 +266,19 @@ h1, h2, h3, h4, h5, h6 {
 }
 .choice-card:hover { background: var(--color-surface); }
 .choice-card.is-active { background: var(--color-surface); color: #000; outline: 2px solid #000; }
+.choice-card--compact {
+  padding: 0.65rem 0.85rem;
+  gap: 0.25rem;
+}
+.background-card__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.background-card__meta {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  line-height: 1.1;
+}
 /* Small selectable chips used for SRD suggestions */
 .choice-chip {
   border: 1px solid #000;
@@ -296,6 +309,10 @@ h1, h2, h3, h4, h5, h6 {
   --page-pad-outer: 0.75rem; /* outer margin of each page */
   --page-pad-inner: 1.5rem;  /* near meeting edge */
 }
+
+/* Single-page mode (used when page would get too small) */
+.book--single { grid-template-columns: auto; }
+.book--single .book__page--right { display: none; }
 
 /* Wrapper to position nav buttons */
 .book-wrap {
@@ -335,6 +352,8 @@ h1, h2, h3, h4, h5, h6 {
   --content-pad-y: 1.5rem;
   padding: var(--paper-pad); /* base padding; inner gutters handled by textarea */
   position: relative; /* anchor inner page number */
+  min-height: 0; /* prevent flex children from forcing growth */
+  overflow: hidden; /* clamp content; keep A4 aspect-controlled height */
 }
 /* Pages meet with a crisp 2px seam formed by two 1px inner borders */
 .book__page--left .book__paper { border-right-width: 1px; }
@@ -351,6 +370,7 @@ h1, h2, h3, h4, h5, h6 {
   min-height: 0;
   height: 100%;
   resize: none; /* prevent breaking layout */
+  overflow: hidden; /* avoid scrollbars flickering at the boundary */
   display: block;
   border: none;
   outline: none;
@@ -359,7 +379,7 @@ h1, h2, h3, h4, h5, h6 {
   /* Vertical rules: no extra top/bottom padding */
   padding-top: var(--rlh); /* hide one ruled line at top */
   padding-right: 0; /* side padding handled by .book__content */
-  padding-bottom: calc(var(--rlh) * 3); /* hide three ruled lines at bottom */
+  padding-bottom: 0; /* bottom reserve handled by .book__content */
   padding-left: 0; /* side padding handled by .book__content */
 }
 .book__textarea:focus { outline: none; }
@@ -368,6 +388,16 @@ h1, h2, h3, h4, h5, h6 {
 .book__page--left { padding-left: var(--page-pad-outer); padding-right: 0; }
 .book__page--right { padding-right: var(--page-pad-outer); padding-left: 0; }
 /* textarea side padding centralized via .book__content */
+
+/* Two-column overlay editor placeholder (visual only) */
+.two-col-editor[contenteditable="true"][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  opacity: 0.5;
+  color: inherit;
+  pointer-events: none;
+  white-space: pre-wrap;
+  display: block;
+}
 
 /* remove title/index experimental styles */
 /* Basic title input */
@@ -385,11 +415,11 @@ h1, h2, h3, h4, h5, h6 {
 .book__title { margin-bottom: 0.5rem; }
 .book__index { flex: 1 1 auto; overflow: auto; }
 .book__index-empty { opacity: 0.7; }
-.book__index-list { list-style: none; padding: 0; margin: 0; }
-.book__index-list li { padding: 0.15rem 0; }
-.book__index-label { flex: 1; text-align: left; }
+.book__index-list { list-style: none; padding: 0; margin: 0; line-height: var(--rlh, 1.5rem); }
+.book__index-list li { padding: 0; margin: 0; }
+.book__index-label { flex: 1; text-align: left; display: inline-block; line-height: var(--rlh, 1.5rem); }
 .book__index-page { width: 2.5rem; text-align: right; opacity: 0.8; }
-.book__index-row { display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; }
+.book__index-row { display: flex; justify-content: space-between; gap: 0.25rem; align-items: center; min-height: var(--rlh, 1.5rem); line-height: var(--rlh, 1.5rem); }
 
 /* NotesBook index utilities */
 .book__index-bar { display: flex; gap: 0.5rem; align-items: center; }
@@ -434,8 +464,8 @@ h1, h2, h3, h4, h5, h6 {
 .truncate-1 { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 /* Line clamp utilities */
-.clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* Page numbers */
 .book__page-num {
@@ -494,6 +524,45 @@ h1, h2, h3, h4, h5, h6 {
 /* Generic hover muted */
 .hover-muted:hover { background: var(--color-surface); }
 
+/* Centered overlay card (confirm/toast) */
+.overlay-center {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border: 2px solid #000;
+  padding: 0.6rem 0.8rem;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+/* Rotated index tab pinned outside the left frame */
+.index-tab {
+  position: absolute;
+  top: calc(var(--content-pad-y, 1.5rem) + 1 * var(--rlh, 1.5rem) - 1.25rem);
+  left: -1.6rem;
+  transform: rotate(-90deg) translateX(-100%);
+  transform-origin: top left;
+  background: var(--color-surface, #fff);
+  border: 2px solid #000;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Index overlay container inside left page */
+.book__index-overlay {
+  position: absolute;
+  inset: 0;
+  top: var(--content-pad-y);
+  padding-left: var(--page-side-pad);
+  padding-right: var(--page-side-pad);
+}
+
 
 /* Lined notepaper textarea */
 .textarea-lined {
@@ -525,12 +594,52 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Shared horizontal padding for all inner page content */
 .book__content {
-  padding: var(--content-pad-y) var(--page-side-pad);
+  --rule-bias: 3px; /* vertical offset above the line to tuck closer to text */
+  --extra-top-pad: 0px; /* additional top spacing, e.g., to trim top lines */
+  --line-reserve-lines: 0; /* number of extra ruled lines reserved at the bottom */
+  /* Use the same line height as the textarea so reserves match lines exactly */
+  line-height: var(--rlh, 1.5rem);
+  padding-top: calc(var(--content-pad-y) + var(--extra-top-pad));
+  /* Reserve space at the bottom equal to N line-heights so content ends where lines end */
+  padding-bottom: calc(var(--content-pad-y) + (var(--line-reserve-lines) * var(--rlh, 1.5rem)));
+  padding-left: var(--page-side-pad);
+  padding-right: var(--page-side-pad);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   flex: 1 1 auto;
   min-height: 0; /* allow children to grow/shrink within page */
+  position: relative; /* anchor ruling canvas */
+  overflow: hidden; /* ensure long content cannot spill off the page */
+}
+
+/* Utility classes for bottom reserve expressed in line-heights */
+.reserve-lines-0 { --line-reserve-lines: 0; }
+.reserve-lines-1 { --line-reserve-lines: 1; }
+.reserve-lines-2 { --line-reserve-lines: 2; }
+/* Optional ruled background for page content */
+.book__content--ruled {
+  --rlh: 1.5rem;           /* line height in px or rem; overridden via JS */
+  --rule-shift: 0.2rem;    /* nudge rules upward toward the baseline */
+  background-image: linear-gradient(
+    to bottom,
+    transparent calc(var(--rlh) - 1px),
+    rgba(0, 0, 0, 0.08) 0
+  );
+  background-size: 100% var(--rlh);
+  background-origin: content-box;
+  background-clip: content-box;
+  background-attachment: local;
+  background-position: left calc(-1 * var(--rule-shift));
+}
+
+/* Body text inside pages: fully justified with hyphenation */
+.book__body {
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  -ms-hyphens: auto;
 }
 /* Nav buttons over the outer borders aligned with title area */
 .book__nav-btn {
@@ -565,6 +674,14 @@ h1, h2, h3, h4, h5, h6 {
 .book__nav-btn--prev::before { border-right: 8px solid #000; }
 .book__nav-btn--next::before { border-left: 8px solid #000; }
 
+/* Taller nav buttons that keep the same top edge, extending downward */
+.book__nav-btn--tall { height: 4rem; }
+.book__nav-btn--tall.book__nav-btn--prev { transform: translate(-50%, -25%); }
+.book__nav-btn--tall.book__nav-btn--next { transform: translate(50%, -25%); }
+
+/* Canvas used to draw exact text ruling lines */
+.ruling-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: block; }
+
 /* Dense layout adjustments for the Character Builder */
 .builder-dense .frame { padding: 0.5rem; }
 .builder-dense .pad-6 { padding: 0.75rem; }
@@ -586,3 +703,7 @@ h1, h2, h3, h4, h5, h6 {
 .grid-tight { gap: 0.5rem; }
 
 /* NotesBook renders at natural size within PlayArea */
+
+/* Doubled vertical page padding helper */
+.book-pad-y-2x .book__paper { --content-pad-y: 3rem; }
+

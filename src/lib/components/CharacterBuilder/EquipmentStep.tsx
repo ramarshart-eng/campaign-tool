@@ -2,15 +2,13 @@
  * Step 6: Equipment Selection
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import type { CharacterBuilderState } from "./CharacterBuilder";
 import type { Item } from "@/lib/types/Item";
 
 interface EquipmentStepProps {
   state: CharacterBuilderState;
   updateState: (updates: Partial<CharacterBuilderState>) => void;
-  onNext: () => void;
-  onPrevious: () => void;
 }
 
 // Basic starting equipment based on class
@@ -102,23 +100,18 @@ const COMMON_ITEMS: Item[] = [
 const EquipmentStep: React.FC<EquipmentStepProps> = ({
   state,
   updateState,
-  onNext,
-  onPrevious,
 }) => {
   // Get starting equipment for the selected class
-  const classEquipment = state.selectedClass
-    ? CLASS_STARTING_EQUIPMENT[state.selectedClass.index] || []
-    : [];
+  const classEquipment = useMemo(() => {
+    if (!state.selectedClass) return [];
+    return CLASS_STARTING_EQUIPMENT[state.selectedClass.index] || [];
+  }, [state.selectedClass]);
 
-  const [selectedItems] = useState<Item[]>(() => {
-    // Include class equipment and all common items by default (no per-item selection)
-    return [...classEquipment, ...COMMON_ITEMS];
-  });
+  const selectedItems = useMemo<Item[]>(() => [...classEquipment, ...COMMON_ITEMS], [classEquipment]);
 
-  const handleNext = () => {
+  useEffect(() => {
     updateState({ inventory: selectedItems });
-    onNext();
-  };
+  }, [selectedItems, updateState]);
 
   return (
     <div className="builder-step">
@@ -178,23 +171,6 @@ const EquipmentStep: React.FC<EquipmentStepProps> = ({
         <div className="">
           Total Items: {selectedItems.reduce((sum, item) => sum + item.quantity, 0)}
         </div>
-      </div>
-
-      <div className="builder-footer">
-        <button
-          type="button"
-          onClick={onPrevious}
-          className="btn-frame btn-frame--lg"
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          onClick={handleNext}
-          className="btn-frame btn-frame--lg"
-        >
-          Next
-        </button>
       </div>
     </div>
   );

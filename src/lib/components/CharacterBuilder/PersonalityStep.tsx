@@ -10,8 +10,6 @@ import type { SRDBackground } from "@/lib/types/SRD";
 interface PersonalityStepProps {
   state: CharacterBuilderState;
   updateState: (updates: Partial<CharacterBuilderState>) => void;
-  onNext: () => void;
-  onPrevious: () => void;
 }
 
 const splitLines = (text: string) =>
@@ -23,8 +21,6 @@ const splitLines = (text: string) =>
 const PersonalityStep: React.FC<PersonalityStepProps> = ({
   state,
   updateState,
-  onNext,
-  onPrevious,
 }) => {
   const [traits, setTraits] = useState(state.personalityTraits || "");
   const [ideals, setIdeals] = useState(state.ideals || "");
@@ -32,33 +28,49 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
   const [flaws, setFlaws] = useState(state.flaws || "");
 
   // SRD suggestions for the selected background
-  const [srdBackground, setSrdBackground] = useState<SRDBackground | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [backgroundCache, setBackgroundCache] = useState<Record<string, SRDBackground>>({});
+  const [loadingIndex, setLoadingIndex] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const selectedBackgroundIndex = state.selectedBackground?.index ?? null;
 
   useEffect(() => {
-    const index = state.selectedBackground?.index;
-    if (!index) {
-      setSrdBackground(null);
+    if (!selectedBackgroundIndex) {
+      return;
+    }
+    if (backgroundCache[selectedBackgroundIndex]) {
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    setLoadingIndex(selectedBackgroundIndex);
     setError(null);
-    getBackground(index)
+    getBackground(selectedBackgroundIndex)
       .then((data) => {
-        if (!cancelled) setSrdBackground(data as SRDBackground);
+        if (!cancelled) {
+          setBackgroundCache((prev) => ({
+            ...prev,
+            [selectedBackgroundIndex]: data as SRDBackground,
+          }));
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoadingIndex((prev) => (prev === selectedBackgroundIndex ? null : prev));
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [state.selectedBackground?.index]);
+  }, [selectedBackgroundIndex, backgroundCache]);
+
+  const srdBackground = selectedBackgroundIndex
+    ? backgroundCache[selectedBackgroundIndex] ?? null
+    : null;
+  const loading = Boolean(
+    selectedBackgroundIndex && loadingIndex === selectedBackgroundIndex && !srdBackground
+  );
 
   const suggestions = useMemo(() => {
     const defaults = {
@@ -93,10 +105,14 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
 
     if (!srdBackground) return defaults;
 
-    const traitOptions = srdBackground.personality_traits?.from?.options?.map((o: any) => o.string).filter(Boolean) || [];
-    const idealOptions = srdBackground.ideals?.from?.options?.map((o: any) => o.desc).filter(Boolean) || [];
-    const bondOptions = srdBackground.bonds?.from?.options?.map((o: any) => o.string).filter(Boolean) || [];
-    const flawOptions = srdBackground.flaws?.from?.options?.map((o: any) => o.string).filter(Boolean) || [];
+    const traitOptions =
+      srdBackground.personality_traits?.from?.options?.map((option) => option.string).filter(Boolean) || [];
+    const idealOptions =
+      srdBackground.ideals?.from?.options?.map((option) => option.desc).filter(Boolean) || [];
+    const bondOptions =
+      srdBackground.bonds?.from?.options?.map((option) => option.string).filter(Boolean) || [];
+    const flawOptions =
+      srdBackground.flaws?.from?.options?.map((option) => option.string).filter(Boolean) || [];
 
     const choose = {
       traits: srdBackground.personality_traits?.choose ?? defaults.choose.traits,
@@ -114,14 +130,24 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
     };
   }, [srdBackground]);
 
-  const handleNext = () => {
-    updateState({
-      personalityTraits: traits,
-      ideals,
-      bonds,
-      flaws,
-    });
-    onNext();
+  const handleTraitsChange = (value: string) => {
+    setTraits(value);
+    updateState({ personalityTraits: value });
+  };
+
+  const handleIdealsChange = (value: string) => {
+    setIdeals(value);
+    updateState({ ideals: value });
+  };
+
+  const handleBondsChange = (value: string) => {
+    setBonds(value);
+    updateState({ bonds: value });
+  };
+
+  const handleFlawsChange = (value: string) => {
+    setFlaws(value);
+    updateState({ flaws: value });
   };
 
   return (
@@ -129,113 +155,103 @@ const PersonalityStep: React.FC<PersonalityStepProps> = ({
       <div>
         <h2 className=" mb-1">Define Your Personality</h2>
         <p className="text-muted mt-0">
-          Add or tweak your character's traits, ideals, bonds, and flaws. You can always edit these later on the Character tab.
+          Add or tweak your character&rsquo;s traits, ideals, bonds, and flaws. You can always edit these later on the Character tab.
         </p>
         {/* Suggestions rendered inline below as before */}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {loading && (
+        <div className="text-muted text-sm">Loading background inspirations&hellip;</div>
+      )}
+      {!loading && error && (
+        <div className="text-danger text-sm">Unable to load SRD background suggestions.</div>
+      )}
+
+      <div className="flex flex-col gap-3">
         <div className="frame pad-4">
-          <div className="mb-2">Personality Traits</div>
-          <textarea
-            rows={2}
-            className="w-full border-2 border-black p-2 bg-transparent textarea-lined"
-            value={traits}
-            onChange={(e) => setTraits(e.target.value)}
-            placeholder="Quirks, habits, mannerisms..."
-          />
-          {suggestions && suggestions.traitOptions.length > 0 && (
-            <div className="mt-2">
+          <div className="flex items-center justify-between mb-2">
+            <div>Personality Traits</div>
+            {suggestions && suggestions.traitOptions.length > 0 && (
               <SuggestionPicker
                 label="Suggestions"
                 choose={suggestions.choose.traits}
                 options={suggestions.traitOptions}
                 value={traits}
-                onChange={setTraits}
+                onChange={handleTraitsChange}
               />
-            </div>
-          )}
-        </div>
-        <div className="frame pad-4">
-          <div className="mb-2">Ideals</div>
+            )}
+          </div>
           <textarea
             rows={2}
             className="w-full border-2 border-black p-2 bg-transparent textarea-lined"
-            value={ideals}
-            onChange={(e) => setIdeals(e.target.value)}
-            placeholder="Beliefs or guiding principles..."
+            value={traits}
+            onChange={(e) => handleTraitsChange(e.target.value)}
+            placeholder="Quirks, habits, mannerisms..."
           />
-          {suggestions && suggestions.idealOptions.length > 0 && (
-            <div className="mt-2">
+        </div>
+        <div className="frame pad-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>Ideals</div>
+            {suggestions && suggestions.idealOptions.length > 0 && (
               <SuggestionPicker
                 label="Suggestions"
                 choose={suggestions.choose.ideals}
                 options={suggestions.idealOptions}
                 value={ideals}
-                onChange={setIdeals}
+                onChange={handleIdealsChange}
               />
-            </div>
-          )}
-        </div>
-        <div className="frame pad-4">
-          <div className="mb-2">Bonds</div>
+            )}
+          </div>
           <textarea
             rows={2}
             className="w-full border-2 border-black p-2 bg-transparent textarea-lined"
-            value={bonds}
-            onChange={(e) => setBonds(e.target.value)}
-            placeholder="People, places, or obligations..."
+            value={ideals}
+            onChange={(e) => handleIdealsChange(e.target.value)}
+            placeholder="Beliefs or guiding principles..."
           />
-          {suggestions && suggestions.bondOptions.length > 0 && (
-            <div className="mt-2">
+        </div>
+        <div className="frame pad-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>Bonds</div>
+            {suggestions && suggestions.bondOptions.length > 0 && (
               <SuggestionPicker
                 label="Suggestions"
                 choose={suggestions.choose.bonds}
                 options={suggestions.bondOptions}
                 value={bonds}
-                onChange={setBonds}
+                onChange={handleBondsChange}
               />
-            </div>
-          )}
-        </div>
-        <div className="frame pad-4">
-          <div className="mb-2">Flaws</div>
+            )}
+          </div>
           <textarea
             rows={2}
             className="w-full border-2 border-black p-2 bg-transparent textarea-lined"
-            value={flaws}
-            onChange={(e) => setFlaws(e.target.value)}
-            placeholder="Weaknesses, vices, or tendencies..."
+            value={bonds}
+            onChange={(e) => handleBondsChange(e.target.value)}
+            placeholder="People, places, or obligations..."
           />
-          {suggestions && suggestions.flawOptions.length > 0 && (
-            <div className="mt-2">
+        </div>
+        <div className="frame pad-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>Flaws</div>
+            {suggestions && suggestions.flawOptions.length > 0 && (
               <SuggestionPicker
                 label="Suggestions"
                 choose={suggestions.choose.flaws}
                 options={suggestions.flawOptions}
                 value={flaws}
-                onChange={setFlaws}
+                onChange={handleFlawsChange}
               />
-            </div>
-          )}
+            )}
+          </div>
+          <textarea
+            rows={2}
+            className="w-full border-2 border-black p-2 bg-transparent textarea-lined"
+            value={flaws}
+            onChange={(e) => handleFlawsChange(e.target.value)}
+            placeholder="Weaknesses, vices, or tendencies..."
+          />
         </div>
-      </div>
-
-      <div className="builder-footer">
-        <button
-          type="button"
-          onClick={onPrevious}
-          className="btn-frame btn-frame--lg"
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          onClick={handleNext}
-          className="btn-frame"
-        >
-          Next
-        </button>
       </div>
     </div>
   );
@@ -311,15 +327,7 @@ const SuggestionPicker: React.FC<SuggestionPickerProps> = ({
           {selected.length}/{limitLabel} selected
         </button>
       </div>
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2">
-          {selected.map((opt) => (
-            <span key={opt} className="choice-chip chip-sm truncate-1" title={opt}>
-              {opt}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Removed selected chips preview to avoid duplicating content */}
       {open && (
         <div className="popover" role="dialog" aria-label={`${label} options`}>
           <div className="popover-list">

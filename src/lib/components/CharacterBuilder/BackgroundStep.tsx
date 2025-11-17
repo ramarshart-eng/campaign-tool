@@ -2,36 +2,25 @@
  * Step 5: Background Selection
  */
 
-import React, { useState } from "react";
+import React from "react";
 import type { CharacterBuilderState } from "./CharacterBuilder";
 import { useBackgrounds } from "@/lib/hooks/useSRD";
 
 interface BackgroundStepProps {
   state: CharacterBuilderState;
   updateState: (updates: Partial<CharacterBuilderState>) => void;
-  onNext: () => void;
-  onPrevious: () => void;
 }
 
 const BackgroundStep: React.FC<BackgroundStepProps> = ({
   state,
   updateState,
-  onNext,
-  onPrevious,
 }) => {
-  const { data: backgrounds, loading, error } = useBackgrounds();
-  const [selectedBackground, setSelectedBackground] = useState(
-    state.selectedBackground
-  );
+  const { data: backgrounds } = useBackgrounds();
+  const selectedBackground = state.selectedBackground;
 
   const handleSelect = (background: typeof selectedBackground) => {
-    setSelectedBackground(background);
-  };
-
-  const handleNext = () => {
-    if (selectedBackground) {
-      updateState({ selectedBackground });
-      onNext();
+    if (background) {
+      updateState({ selectedBackground: background });
     }
   };
 
@@ -40,20 +29,20 @@ const BackgroundStep: React.FC<BackgroundStepProps> = ({
       <div>
         <h2 className=" mb-1">Choose Your Background</h2>
         <p className="text-muted mt-0">
-          Your background represents your character's history and provides additional skills and features.
+          Your background represents your character&rsquo;s history and provides additional skills and features.
         </p>
         {/* Keep panel steady; no inline loading/error messages */}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 grid-tight">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 grid-tight">
         {backgrounds?.map((bg) => (
           <button
             key={bg.index}
             onClick={() => handleSelect(bg)}
-            className={`choice-card ${selectedBackground?.index === bg.index ? "is-active" : ""}`}
+            className={`choice-card choice-card--compact background-card ${selectedBackground?.index === bg.index ? "is-active" : ""}`}
           >
-            <div className="  mb-1">{bg.name}</div>
-            <div className=" opacity-80">
+            <div className="background-card__title">{bg.name}</div>
+            <div className="background-card__meta">
               Skills: {bg.skillProficiencies.join(", ")}
             </div>
           </button>
@@ -101,24 +90,6 @@ const BackgroundStep: React.FC<BackgroundStepProps> = ({
           </div>
         </div>
       )}
-
-      <div className="builder-footer">
-        <button
-          type="button"
-          onClick={onPrevious}
-          className="btn-frame btn-frame--lg"
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          onClick={handleNext}
-          disabled={!selectedBackground}
-          className={`btn-frame ${!selectedBackground ? "btn-disabled" : ""}`}
-        >
-          Next
-        </button>
-      </div>
     </div>
   );
 };

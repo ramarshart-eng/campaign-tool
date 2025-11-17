@@ -3,14 +3,12 @@
  * Uses Standard Array: 15, 14, 13, 12, 10, 8
  */
 
-import React, { useState } from "react";
+import React from "react";
 import type { CharacterBuilderState } from "./CharacterBuilder";
 
 interface AbilityScoresStepProps {
   state: CharacterBuilderState;
   updateState: (updates: Partial<CharacterBuilderState>) => void;
-  onNext: () => void;
-  onPrevious: () => void;
 }
 
 const STANDARD_ARRAY = [15, 14, 13, 12, 10, 8];
@@ -24,53 +22,26 @@ const ABILITY_NAMES = {
   CHA: "Charisma",
 };
 
+const computeAvailable = (scores: CharacterBuilderState["abilityScores"]) => {
+  const used = Object.values(scores);
+  return STANDARD_ARRAY.filter((score) => {
+    const usedCount = used.filter((s) => s === score).length;
+    const totalCount = STANDARD_ARRAY.filter((s) => s === score).length;
+    return usedCount < totalCount;
+  });
+};
+
 const AbilityScoresStep: React.FC<AbilityScoresStepProps> = ({
   state,
   updateState,
-  onNext,
-  onPrevious,
 }) => {
-  const [scores, setScores] = useState(state.abilityScores);
-  const [availableScores, setAvailableScores] = useState(() => {
-    // Calculate which scores are still available
-    const used = Object.values(scores);
-    return STANDARD_ARRAY.filter((score) => {
-      const usedCount = used.filter((s) => s === score).length;
-      const totalCount = STANDARD_ARRAY.filter((s) => s === score).length;
-      return usedCount < totalCount;
-    });
-  });
+  const scores = state.abilityScores;
+  const availableScores = computeAvailable(scores);
 
   const handleScoreChange = (ability: keyof typeof scores, newScore: number) => {
-    const oldScore = scores[ability];
-
-    // Update scores
     const newScores = { ...scores, [ability]: newScore };
-    setScores(newScores);
-
-    // Update available scores
-    const newAvailable = [...availableScores];
-    if (oldScore !== 10) {
-      // Return old score to available pool (unless it's the default)
-      newAvailable.push(oldScore);
-    }
-    if (newScore !== 10) {
-      // Remove new score from available pool
-      const index = newAvailable.indexOf(newScore);
-      if (index > -1) {
-        newAvailable.splice(index, 1);
-      }
-    }
-    setAvailableScores(newAvailable.sort((a, b) => b - a));
+    updateState({ abilityScores: newScores });
   };
-
-  const handleNext = () => {
-    updateState({ abilityScores: scores });
-    onNext();
-  };
-
-  // Check if all scores are assigned
-  const allAssigned = availableScores.length === 0 || availableScores.every((s) => s === 10);
 
   return (
     <div className="builder-step">
@@ -127,20 +98,6 @@ const AbilityScoresStep: React.FC<AbilityScoresStepProps> = ({
             </div>
           );
         })}
-      </div>
-
-      <div className="builder-footer">
-        <button type="button" onClick={onPrevious} className="btn-frame">
-          Previous
-        </button>
-        <button
-          type="button"
-          onClick={handleNext}
-          disabled={!allAssigned}
-          className={`btn-frame ${!allAssigned ? "btn-disabled" : ""}`}
-        >
-          Next
-        </button>
       </div>
     </div>
   );

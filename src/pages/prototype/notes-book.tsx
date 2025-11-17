@@ -41,14 +41,7 @@ const NotesBookPrototypePage: NextPage = () => {
     }
   }, [character, setCharacter]);
 
-  return (
-    <main className="h-screen flex flex-col overflow-hidden">
-      <div className="w-full p-4 flex-1 min-h-0">
-        <NotesBook />
-      </div>
-    </main>
-  );
+  return <NotesBook />;
 };
 
 export default NotesBookPrototypePage;
-

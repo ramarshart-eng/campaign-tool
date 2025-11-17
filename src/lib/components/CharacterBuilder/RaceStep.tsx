@@ -2,25 +2,21 @@
  * Step 2: Race Selection
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { CharacterBuilderState } from "./CharacterBuilder";
 import { useRaces, useRace } from "@/lib/hooks/useSRD";
-import type { APIReference } from "@/lib/types/SRD";
+import type { APIReference, SRDRace } from "@/lib/types/SRD";
 
 interface RaceStepProps {
   state: CharacterBuilderState;
   updateState: (updates: Partial<CharacterBuilderState>) => void;
-  onNext: () => void;
-  onPrevious: () => void;
   racesPrefetch?: APIReference[];
-  raceDetailsPrefetch?: any;
+  raceDetailsPrefetch?: SRDRace | null;
 }
 
 const RaceStep: React.FC<RaceStepProps> = ({
   state,
   updateState,
-  onNext,
-  onPrevious,
   racesPrefetch,
   raceDetailsPrefetch,
 }) => {
@@ -34,18 +30,17 @@ const RaceStep: React.FC<RaceStepProps> = ({
   const hookDetail = useRace(selectedIndex);
   const raceDetails =
     raceDetailsPrefetch && selectedIndex === state.selectedRace?.index
-      ? (raceDetailsPrefetch as any)
+      ? raceDetailsPrefetch
       : hookDetail.data;
+
+  useEffect(() => {
+    if (raceDetails && raceDetails.index === selectedIndex) {
+      updateState({ selectedRace: raceDetails });
+    }
+  }, [raceDetails, selectedIndex, updateState]);
 
   const handleSelect = (index: string) => {
     setSelectedIndex(index);
-  };
-
-  const handleNext = () => {
-    if (raceDetails) {
-      updateState({ selectedRace: raceDetails });
-      onNext();
-    }
   };
 
   return (
@@ -53,12 +48,18 @@ const RaceStep: React.FC<RaceStepProps> = ({
       <div>
         <h2 className=" mb-1">Choose Your Race</h2>
         <p className="text-muted mt-0">
-          Your race determines your character's physical traits and special abilities.
+          Your race determines your character&rsquo;s physical traits and special abilities.
         </p>
         {/* Keep panel steady; no inline loading/error messages */}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 grid-tight">
+        {loading && (
+          <div className="text-muted text-sm col-span-2 md:col-span-3">Loading races&hellip;</div>
+        )}
+        {!loading && error && (
+          <div className="text-danger text-sm col-span-2 md:col-span-3">Failed to load races.</div>
+        )}
         {races?.map((race) => (
           <button
             key={race.index}
@@ -88,7 +89,7 @@ const RaceStep: React.FC<RaceStepProps> = ({
               <div>
                 <span className="subheading">Ability Score Increases:</span>
                 <ul className="list-disc list-inside ml-2">
-                  {raceDetails.ability_bonuses.map((bonus, idx) => (
+                  {raceDetails.ability_bonuses.map((bonus: { ability_score: { name: string }; bonus: number }, idx: number) => (
                     <li key={idx}>
                       {bonus.ability_score.name} +{bonus.bonus}
                     </li>
@@ -101,7 +102,7 @@ const RaceStep: React.FC<RaceStepProps> = ({
               <div>
                 <span className="subheading">Racial Traits:</span>
                 <ul className="list-disc list-inside ml-2">
-                  {raceDetails.traits.map((trait) => (
+                  {raceDetails.traits.map((trait: { index: string; name: string }) => (
                     <li key={trait.index}>{trait.name}</li>
                   ))}
                 </ul>
@@ -110,28 +111,8 @@ const RaceStep: React.FC<RaceStepProps> = ({
           </div>
         </div>
       )}
-
-      <div className="builder-footer">
-        <button
-          type="button"
-          onClick={onPrevious}
-          className="btn-frame btn-frame--lg"
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          onClick={handleNext}
-          disabled={!selectedIndex}
-          className={`btn-frame ${!selectedIndex ? "btn-disabled" : ""}`}
-        >
-          Next
-        </button>
-      </div>
     </div>
   );
 };
 
 export default RaceStep;
-
-

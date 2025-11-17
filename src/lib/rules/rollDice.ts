@@ -37,7 +37,7 @@ export function rollDice(
     };
   }
 
-  const [, countStr, sidesStr, modStr] = match;
+  const [, , sidesStr, modStr] = match;
   const sides = Number(sidesStr);
   const modifier = modStr ? Number(modStr) : 0;
 

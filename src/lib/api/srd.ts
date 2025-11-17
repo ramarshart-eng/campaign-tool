@@ -3,6 +3,8 @@
  * API Documentation: https://www.dnd5eapi.co/docs/
  */
 
+import type { SRDBackground, SRDClass, SRDRace, SRDSpell } from "@/lib/types/SRD";
+
 const SRD_API_BASE = "https://www.dnd5eapi.co/api";
 
 export class SRDApiError extends Error {
@@ -55,7 +57,7 @@ export async function getRaces() {
  * Get detailed information about a specific race
  */
 export async function getRace(index: string) {
-  return fetchSRD<any>(`/races/${index}`);
+  return fetchSRD<SRDRace>(`/races/${index}`);
 }
 
 /**
@@ -71,7 +73,7 @@ export async function getClasses() {
  * Get detailed information about a specific class
  */
 export async function getClass(index: string) {
-  return fetchSRD<any>(`/classes/${index}`);
+  return fetchSRD<SRDClass>(`/classes/${index}`);
 }
 
 /**
@@ -87,7 +89,7 @@ export async function getBackgrounds() {
  * Get detailed information about a specific background
  */
 export async function getBackground(index: string) {
-  return fetchSRD<any>(`/backgrounds/${index}`);
+  return fetchSRD<SRDBackground>(`/backgrounds/${index}`);
 }
 
 /**
@@ -112,14 +114,14 @@ export async function getAbilityScores() {
  * Get starting equipment for a class
  */
 export async function getStartingEquipment(classIndex: string) {
-  return fetchSRD<any>(`/classes/${classIndex}/starting-equipment`);
+  return fetchSRD<Record<string, unknown>>(`/classes/${classIndex}/starting-equipment`);
 }
 
 /**
  * Get proficiencies for a class
  */
 export async function getProficiencies(classIndex: string) {
-  return fetchSRD<any>(`/classes/${classIndex}/proficiencies`);
+  return fetchSRD<Record<string, unknown>>(`/classes/${classIndex}/proficiencies`);
 }
 
 /**
@@ -135,7 +137,7 @@ export async function getSpells() {
  * Get detailed information about a specific spell
  */
 export async function getSpell(index: string) {
-  return fetchSRD<any>(`/spells/${index}`);
+  return fetchSRD<SRDSpell>(`/spells/${index}`);
 }
 
 /**

@@ -81,4 +81,6 @@ export interface Character {
   notesCategory?: string[];
   // List of available category paths for the notebook index
   notesCategoryList?: string[];
+  // Personal notes about the character (displayed on Character tab)
+  characterNotes?: string;
 }
