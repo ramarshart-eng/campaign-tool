@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(taskkill /F /PID 46084)",
+      "Bash(taskkill //F //PID 46084)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill //F //PID 13780)",
+      "Bash(taskkill //F //PID 47780)",
+      "Bash(mkdir:*)",
+      "Bash(taskkill //F //PID 6304)",
+      "Bash(taskkill //F //PID 27964)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

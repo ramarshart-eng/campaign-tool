@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "icons": {
+    "select": { "1x": "/assets/battlemap/default/icons/select.svg", "2x": "/assets/battlemap/default/icons/select.svg", "size": [24, 24] },
+    "pan": { "1x": "/assets/battlemap/default/icons/pan.svg", "2x": "/assets/battlemap/default/icons/pan.svg", "size": [24, 24] },
+    "draw.rectangle": { "1x": "/assets/battlemap/default/icons/draw-rectangle.svg", "2x": "/assets/battlemap/default/icons/draw-rectangle.svg", "size": [24, 24] },
+    "draw.border": { "1x": "/assets/battlemap/default/icons/draw-border.svg", "2x": "/assets/battlemap/default/icons/draw-border.svg", "size": [24, 24] },
+    "draw.polygon": { "1x": "/assets/battlemap/default/icons/draw-polygon.svg", "2x": "/assets/battlemap/default/icons/draw-polygon.svg", "size": [24, 24] },
+    "draw.gradient": { "1x": "/assets/battlemap/default/icons/draw-gradient.svg", "2x": "/assets/battlemap/default/icons/draw-gradient.svg", "size": [24, 24] },
+    "measure": { "1x": "/assets/battlemap/default/icons/measure.svg", "2x": "/assets/battlemap/default/icons/measure.svg", "size": [24, 24] },
+    "grid.toggle": { "1x": "/assets/battlemap/default/icons/grid-toggle.svg", "2x": "/assets/battlemap/default/icons/grid-toggle.svg", "size": [24, 24] },
+    "token.add": { "1x": "/assets/battlemap/default/icons/token-add.svg", "2x": "/assets/battlemap/default/icons/token-add.svg", "size": [24, 24] },
+    "fog.toggle": { "1x": "/assets/battlemap/default/icons/fog-toggle.svg", "2x": "/assets/battlemap/default/icons/fog-toggle.svg", "size": [24, 24] },
+    "erase": { "1x": "/assets/battlemap/default/icons/erase.svg", "2x": "/assets/battlemap/default/icons/erase.svg", "size": [24, 24] },
+    "draw.brush": { "1x": "/assets/battlemap/default/icons/draw-brush.svg", "2x": "/assets/battlemap/default/icons/draw-brush.svg", "size": [24, 24] }
+  },
+  "cursors": {
+    "select": "/assets/battlemap/default/icons/select.svg",
+    "pan": "/assets/battlemap/default/icons/pan.svg",
+    "draw": "/assets/battlemap/default/icons/draw-brush.svg"
+  },
+  "grid": {
+    "default": { "1x": "/assets/battlemap/default/grid/default.png", "2x": "/assets/battlemap/default/grid/default@2x.png", "size": [512, 512] },
+    "isometric": { "1x": "/assets/battlemap/default/grid/isometric.png", "2x": "/assets/battlemap/default/grid/isometric@2x.png", "size": [512, 512] }
+  },
+  "tokens": {
+    "base.pc": { "1x": "/assets/battlemap/default/tokens/base-pc.png", "2x": "/assets/battlemap/default/tokens/base-pc@2x.png", "size": [64, 64] },
+    "base.npc": { "1x": "/assets/battlemap/default/tokens/base-npc.png", "2x": "/assets/battlemap/default/tokens/base-npc@2x.png", "size": [64, 64] },
+    "base.monster": { "1x": "/assets/battlemap/default/tokens/base-monster.png", "2x": "/assets/battlemap/default/tokens/base-monster@2x.png", "size": [64, 64] },
+    "frame.default": { "1x": "/assets/battlemap/default/tokens/frame-default.png", "2x": "/assets/battlemap/default/tokens/frame-default@2x.png", "size": [80, 80] }
+  },
+  "panels": {
+    "toolbar": { "image": "/assets/battlemap/default/panels/toolbar.png", "image2x": "/assets/battlemap/default/panels/toolbar@2x.png", "nineSlice": { "left": 8, "right": 8, "top": 8, "bottom": 8 } },
+    "panel": { "image": "/assets/battlemap/default/panels/panel.png", "image2x": "/assets/battlemap/default/panels/panel@2x.png", "nineSlice": { "left": 12, "right": 12, "top": 12, "bottom": 12 } }
+  }
+}

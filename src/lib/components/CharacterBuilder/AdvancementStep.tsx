@@ -73,16 +73,18 @@ const AdvancementStep: React.FC<AdvancementStepProps> = ({
     if (!allow) {
       updatedAdvancements = Object.fromEntries(
         Object.entries(state.advancements).map(([lvl, entry]) => {
-          if (entry.mode === "feat") {
+          const value = entry as AdvancementChoice;
+          if (value.mode === "feat") {
             return [
               Number(lvl),
               {
                 mode: "asi",
-                abilityChoices: entry.abilityChoices ?? [...emptyAbilityChoices],
+                abilityChoices:
+                  value.abilityChoices ?? [...emptyAbilityChoices],
               } as AdvancementChoice,
             ];
           }
-          return [Number(lvl), entry];
+          return [Number(lvl), value];
         })
       ) as AdvancementMap;
     }

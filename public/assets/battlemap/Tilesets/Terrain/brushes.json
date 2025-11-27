@@ -1,0 +1,47 @@
+{
+    "brushes":  [
+                    {
+                        "label":  "Diamond",
+                        "toolType":  "rectangle",
+                        "tilesetId":  "Terrain",
+                        "tilesPath":  "Floor/Diamond_brush",
+                        "layer":  "floor",
+                        "brushId":  "diamond"
+                    },
+                    {
+                        "label":  "Flagstones",
+                        "toolType":  "rectangle",
+                        "tilesetId":  "Terrain",
+                        "tilesPath":  "Floor/Flagstones_brush",
+                        "layer":  "floor",
+                        "brushId":  "flagstones"
+                    },
+                    {
+                        "label":  "Grid Trim",
+                        "toolType":  "rectangle",
+                        "tilesetId":  "Terrain",
+                        "tilesPath":  "Floor/Grid Trim_brush",
+                        "layer":  "floor",
+                        "brushId":  "grid-trim"
+                    }
+                ],
+    "version":  2,
+    "palettes":  [
+
+                 ],
+    "tilesetId":  "Terrain",
+    "tools":  [
+                  {
+                      "label":  "Border Tool",
+                      "description":  "Draw borders and outlines",
+                      "toolType":  "rectangle",
+                      "toolId":  "border"
+                  },
+                  {
+                      "label":  "Rectangle Tool",
+                      "description":  "Fill rectangular areas",
+                      "toolType":  "rectangle",
+                      "toolId":  "rectangle"
+                  }
+              ]
+}

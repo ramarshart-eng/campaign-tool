@@ -1,0 +1,47 @@
+{
+    "brushes":  [
+                    {
+                        "label":  "Stone Railing",
+                        "toolType":  "rectangle",
+                        "tilesetId":  "Structure",
+                        "tilesPath":  "Railings/Stone Railing_brush",
+                        "layer":  "structure",
+                        "brushId":  "stone-railing"
+                    },
+                    {
+                        "label":  "Brick",
+                        "toolType":  "rectangle",
+                        "tilesetId":  "Structure",
+                        "tilesPath":  "Walls/Brick_brush",
+                        "layer":  "structure",
+                        "brushId":  "brick"
+                    },
+                    {
+                        "label":  "Thick",
+                        "toolType":  "rectangle",
+                        "tilesetId":  "Structure",
+                        "tilesPath":  "Walls/Thick_brush",
+                        "layer":  "structure",
+                        "brushId":  "thick"
+                    }
+                ],
+    "version":  2,
+    "palettes":  [
+
+                 ],
+    "tilesetId":  "Structure",
+    "tools":  [
+                  {
+                      "label":  "Border Tool",
+                      "description":  "Draw borders and outlines",
+                      "toolType":  "rectangle",
+                      "toolId":  "border"
+                  },
+                  {
+                      "label":  "Rectangle Tool",
+                      "description":  "Fill rectangular areas",
+                      "toolType":  "rectangle",
+                      "toolId":  "rectangle"
+                  }
+              ]
+}

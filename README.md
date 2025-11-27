@@ -44,6 +44,10 @@ git remote add origin https://github.com/YOUR_USER/campaign-tool.git
 git push -u origin main
 ```
 
+## Battlemap brushes
+
+- Brush behavior (edges, mirrors, decoration choices, etc.) should be defined in the brush JSON files under `public/assets/battlemap/Tilesets/*/brushes*.json`, not hardcoded in components.
+
 ## Features
 - Character builder with step flow (race, class, ability scores, background, equipment)
 - Character sheet and play area with tabbed hotbar
@@ -103,4 +107,3 @@ See `docs/SCOPE.md` for goals, non-goals, phases, and acceptance criteria.
 ## Deploy
 
 Vercel is recommended. Framework preset: Next.js. No special env vars required.
-

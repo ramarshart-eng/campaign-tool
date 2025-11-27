@@ -5,6 +5,8 @@
 
 import React, { useState } from "react";
 import type { Character } from "@/lib/types/Character";
+import type { Item } from "@/lib/types/Item";
+import type { AdvancementMap } from "@/lib/types/advancement";
 import type { SRDRace, SRDClass } from "@/lib/types/SRD";
 import type { LocalBackground } from "@/lib/data/backgrounds";
 import NameStep from "./NameStep";

@@ -9,6 +9,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { CharacterBuilderState, ClassSelection } from "./CharacterBuilder";
 import type { Character } from "@/lib/types/Character";
+import type { AdvancementChoice } from "@/lib/types/advancement";
 import { abilityMod } from "@/lib/rules/computeModifiers";
 import {
   applyAbilityScoreImprovements,
@@ -54,14 +55,17 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ state, onComplete, part }) => {
       .join(" / ");
 
   const collectSelectedFeats = (levelLimit: number) => {
-    return Object.entries(state.advancements || {})
+    const entries = Object.entries(state.advancements || {}) as Array<
+      [string, AdvancementChoice]
+    >;
+    return entries
       .map(([lvl, choice]) => ({ level: Number(lvl), choice }))
       .filter(
         ({ level, choice }) =>
-          level <= levelLimit && choice?.mode === "feat" && choice.featId
+          level <= levelLimit && choice.mode === "feat" && !!choice.featId
       )
       .map(({ choice }) =>
-        choice?.featId ? FEATS_BY_ID[choice.featId] : undefined
+        choice.featId ? FEATS_BY_ID[choice.featId] : undefined
       )
       .filter(Boolean);
   };

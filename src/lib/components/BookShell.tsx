@@ -1,8 +1,9 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+/* eslint-disable react-hooks/refs */
+import React, { useLayoutEffect, useRef, useState } from "react";
 
 export type BookShellSlots = {
-  leftRef: React.RefObject<HTMLDivElement>;
-  rightRef: React.RefObject<HTMLDivElement>;
+  leftRef: React.RefObject<HTMLDivElement | null>;
+  rightRef: React.RefObject<HTMLDivElement | null>;
   spreadStart: number;
   setSpreadStart: React.Dispatch<React.SetStateAction<number>>;
   pageLeft: number;
@@ -83,8 +84,8 @@ const BookShell: React.FC<BookShellProps> = ({ renderSpread, renderHeader, rende
       <div className="w-full px-8 pt-4 pb-2">
         {typeof renderHeader === "function"
           ? renderHeader({
-              leftRef: leftContentRef as React.RefObject<HTMLDivElement>,
-              rightRef: rightContentRef as React.RefObject<HTMLDivElement>,
+              leftRef: leftContentRef,
+              rightRef: rightContentRef,
               spreadStart,
               setSpreadStart,
               pageLeft: spreadStart + 1,
@@ -115,8 +116,8 @@ const BookShell: React.FC<BookShellProps> = ({ renderSpread, renderHeader, rende
                 <div className="book__content" ref={leftContentRef}>
                   {typeof renderSpread === "function"
                     ? renderSpread({
-                        leftRef: leftContentRef as React.RefObject<HTMLDivElement>,
-                        rightRef: rightContentRef as React.RefObject<HTMLDivElement>,
+                        leftRef: leftContentRef,
+                        rightRef: rightContentRef,
                         spreadStart,
                         setSpreadStart,
                         pageLeft: spreadStart + 1,
@@ -148,8 +149,8 @@ const BookShell: React.FC<BookShellProps> = ({ renderSpread, renderHeader, rende
                 <div className="book__content" ref={rightContentRef}>
                   {typeof renderSpread === "function"
                     ? renderSpread({
-                        leftRef: leftContentRef as React.RefObject<HTMLDivElement>,
-                        rightRef: rightContentRef as React.RefObject<HTMLDivElement>,
+                        leftRef: leftContentRef,
+                        rightRef: rightContentRef,
                         spreadStart,
                         setSpreadStart,
                         pageLeft: spreadStart + 1,
@@ -171,8 +172,8 @@ const BookShell: React.FC<BookShellProps> = ({ renderSpread, renderHeader, rende
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
               <div style={{ position: "absolute", top: 0, left: 0, pointerEvents: "auto" }}>
                 {renderOverlay({
-                  leftRef: leftContentRef as React.RefObject<HTMLDivElement>,
-                  rightRef: rightContentRef as React.RefObject<HTMLDivElement>,
+                  leftRef: leftContentRef,
+                  rightRef: rightContentRef,
                   spreadStart,
                   setSpreadStart,
                   pageLeft: spreadStart + 1,

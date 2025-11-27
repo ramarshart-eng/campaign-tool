@@ -1,0 +1,856 @@
+import React from "react";
+import type { NextPage } from "next";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { useDmContext } from "@/lib/context/DmContext";
+import NoteDocRenderer from "@/lib/components/NoteDocRenderer";
+import DmLayout from "@/lib/components/layout/DmLayout";
+import type { CampaignBeat, EncounterEntity, NpcEntity } from "@/lib/types/dm";
+import type { Note } from "@/lib/types/notes";
+
+const DmSessionPlannerPage: NextPage = () => {
+  const router = useRouter();
+  const querySessionId =
+    typeof router.query.sessionId === "string" ? router.query.sessionId : null;
+  const querySceneId =
+    typeof router.query.sceneId === "string" ? router.query.sceneId : null;
+  const {
+    currentCampaign,
+    currentSession,
+    notesForCurrent,
+    encountersForCurrent,
+    npcsForCurrent,
+    beatsForCurrent,
+    createNoteForCurrent,
+    updateNoteForCurrent,
+    createEncounterForCurrentSession,
+    deleteSession,
+    deleteNoteForCurrent,
+    createBeatForCurrent,
+    updateBeatForCurrent,
+    setPrimarySessionNote,
+    setCurrentSessionId,
+  } = useDmContext();
+
+  const sessionId = currentSession?.id ?? null;
+
+  React.useEffect(() => {
+    if (querySessionId && querySessionId !== sessionId) {
+      setCurrentSessionId(querySessionId);
+    }
+  }, [querySessionId, sessionId, setCurrentSessionId]);
+
+  const sceneNotes = React.useMemo(
+    () =>
+      sessionId
+        ? notesForCurrent.filter(
+            (note) => note.scopeType === "scene" && note.scopeId === sessionId
+          )
+        : [],
+    [notesForCurrent, sessionId]
+  );
+
+  const orderedScenes = React.useMemo(() => {
+    const list = [...sceneNotes];
+    return list.sort((a, b) => {
+      const orderA =
+        typeof a.order === "number" ? a.order : Number.MAX_SAFE_INTEGER;
+      const orderB =
+        typeof b.order === "number" ? b.order : Number.MAX_SAFE_INTEGER;
+      if (orderA !== orderB) return orderA - orderB;
+      return (
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+    });
+  }, [sceneNotes]);
+
+  const sessionNotes = React.useMemo(
+    () =>
+      sessionId
+        ? notesForCurrent.filter(
+            (note) => note.scopeType === "session" && note.scopeId === sessionId
+          )
+        : [],
+    [notesForCurrent, sessionId]
+  );
+
+  const [selectedSceneId, setSelectedSceneId] = React.useState<string | null>(
+    null
+  );
+
+  React.useEffect(() => {
+    if (querySceneId && orderedScenes.some((scene) => scene.id === querySceneId)) {
+      setSelectedSceneId(querySceneId);
+      return;
+    }
+    if (!selectedSceneId && orderedScenes.length > 0) {
+      setSelectedSceneId(orderedScenes[0].id);
+    } else if (
+      selectedSceneId &&
+      !orderedScenes.some((scene) => scene.id === selectedSceneId)
+    ) {
+      setSelectedSceneId(orderedScenes[0]?.id ?? null);
+    }
+  }, [orderedScenes, selectedSceneId, querySceneId]);
+
+  const selectedScene =
+    orderedScenes.find((scene) => scene.id === selectedSceneId) ?? null;
+
+  const persistSceneOrder = React.useCallback(
+    (scenes: Note[]) => {
+      scenes.forEach((scene, index) => {
+        updateNoteForCurrent(scene.id, (note) => ({
+          ...note,
+          order: index,
+        }));
+      });
+    },
+    [updateNoteForCurrent]
+  );
+
+  const handleMoveScene = (sceneId: string, direction: "up" | "down") => {
+    const list = [...orderedScenes];
+    const index = list.findIndex((scene) => scene.id === sceneId);
+    if (index === -1) return;
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= list.length) return;
+    const temp = list[targetIndex];
+    list[targetIndex] = list[index];
+    list[index] = temp;
+    persistSceneOrder(list);
+  };
+
+  const npcById = React.useMemo(() => {
+    const map = new Map<string, NpcEntity>();
+    npcsForCurrent.forEach((npc) => map.set(npc.id, npc));
+    return map;
+  }, [npcsForCurrent]);
+
+  const selectedSceneNpcs = React.useMemo(() => {
+    if (!selectedScene?.entityRefs) return [];
+    const seen = new Set<string>();
+    const list: NpcEntity[] = [];
+    selectedScene.entityRefs.forEach((ref) => {
+      if (ref.kind !== "npc") return;
+      if (seen.has(ref.id)) return;
+      const npc = npcById.get(ref.id);
+      if (!npc) return;
+      seen.add(ref.id);
+      list.push(npc);
+    });
+    return list;
+  }, [selectedScene?.entityRefs, npcById]);
+
+  const encountersForSession = React.useMemo(() => {
+    if (!currentSession) return [];
+    return encountersForCurrent.filter(
+      (encounter) => encounter.sessionId === currentSession.id
+    );
+  }, [encountersForCurrent, currentSession]);
+
+  const encountersByScene = React.useMemo(() => {
+    const map = new Map<string, EncounterEntity[]>();
+    encountersForSession.forEach((encounter) => {
+      if (!encounter.sceneNoteId) return;
+      const list = map.get(encounter.sceneNoteId) ?? [];
+      list.push(encounter);
+      map.set(encounter.sceneNoteId, list);
+    });
+    return map;
+  }, [encountersForSession]);
+
+  const beatsForSession = React.useMemo(() => {
+    if (!sessionId) return [];
+    return beatsForCurrent
+      .filter((beat) => beat.sessionId === sessionId)
+      .slice()
+      .sort((a, b) => {
+        if (a.order !== b.order) return a.order - b.order;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+  }, [beatsForCurrent, sessionId]);
+
+  const [sessionDeleteModal, setSessionDeleteModal] = React.useState<{
+    open: boolean;
+    removeChildren: boolean;
+  }>({
+    open: false,
+    removeChildren: true,
+  });
+
+  const [sceneDeleteModal, setSceneDeleteModal] = React.useState<{
+    scene: Note | null;
+  }>({ scene: null });
+
+  const [newBeat, setNewBeat] = React.useState<{
+    title: string;
+    summary: string;
+    sceneNoteId: string;
+    encounterId: string;
+  }>({
+    title: "",
+    summary: "",
+    sceneNoteId: "",
+    encounterId: "",
+  });
+
+  const closeSessionDeleteModal = () =>
+    setSessionDeleteModal((prev) => ({ ...prev, open: false }));
+
+  const handleDeleteSession = () => {
+    if (!currentSession) return;
+    deleteSession(currentSession.id, {
+      removeChildren: sessionDeleteModal.removeChildren,
+    });
+    setSessionDeleteModal({
+      open: false,
+      removeChildren: true,
+    });
+    setSelectedSceneId(null);
+  };
+
+  const openSceneDeleteModal = (scene: Note) =>
+    setSceneDeleteModal({ scene });
+
+  const closeSceneDeleteModal = () => setSceneDeleteModal({ scene: null });
+
+  const handleDeleteScene = () => {
+    if (!sceneDeleteModal.scene) return;
+    deleteNoteForCurrent(sceneDeleteModal.scene.id);
+    if (selectedSceneId === sceneDeleteModal.scene.id) {
+      setSelectedSceneId(null);
+    }
+    closeSceneDeleteModal();
+  };
+
+  const handleSetPrimaryNote = (noteId: string | null) => {
+    if (!currentSession) return;
+    setPrimarySessionNote(currentSession.id, noteId);
+  };
+
+  const handleAddBeat = () => {
+    if (!sessionId || !newBeat.title.trim()) return;
+    createBeatForCurrent({
+      title: newBeat.title.trim(),
+      summary: newBeat.summary.trim() || undefined,
+      arcId: currentSession?.arcId ?? null,
+      sessionId,
+      noteId: newBeat.sceneNoteId || null,
+      sceneNoteId: newBeat.sceneNoteId || null,
+      encounterId: newBeat.encounterId || null,
+    });
+    setNewBeat({
+      title: "",
+      summary: "",
+      sceneNoteId: "",
+      encounterId: "",
+    });
+  };
+
+  const handleCycleBeatStatus = (beat: CampaignBeat) => {
+    const nextStatus: CampaignBeat["status"] =
+      beat.status === "planned"
+        ? "in-progress"
+        : beat.status === "in-progress"
+        ? "done"
+        : "planned";
+    updateBeatForCurrent(beat.id, (prevBeat) => ({
+      ...prevBeat,
+      status: nextStatus,
+    }));
+  };
+
+  const persistBeatOrder = React.useCallback(
+    (beats: CampaignBeat[]) => {
+      beats.forEach((beat, index) => {
+        updateBeatForCurrent(beat.id, (prevBeat) => ({
+          ...prevBeat,
+          order: index,
+        }));
+      });
+    },
+    [updateBeatForCurrent]
+  );
+
+  const handleMoveBeat = (beatId: string, direction: "up" | "down") => {
+    const list = [...beatsForSession];
+    const index = list.findIndex((beat) => beat.id === beatId);
+    if (index === -1) return;
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= list.length) return;
+    const temp = list[targetIndex];
+    list[targetIndex] = list[index];
+    list[index] = temp;
+    persistBeatOrder(list);
+  };
+
+  const handleCreateScene = () => {
+    if (!sessionId) return;
+    const note = createNoteForCurrent({
+      scopeType: "scene",
+      scopeId: sessionId,
+    });
+    if (note) setSelectedSceneId(note.id);
+  };
+
+  const handleCreateSessionNote = () => {
+    if (!sessionId) return;
+    createNoteForCurrent({
+      scopeType: "session",
+      scopeId: sessionId,
+    });
+  };
+
+  const handleSceneCategoryChange = (sceneId: string, value: string) => {
+    updateNoteForCurrent(sceneId, (note) => {
+      const tags = [...(note.tags ?? [])];
+      if (value) {
+        tags[0] = value;
+        return { ...note, tags };
+      }
+      tags.shift();
+      return { ...note, tags };
+    });
+  };
+
+  const handleSceneTitleChange = (sceneId: string, title: string) => {
+    updateNoteForCurrent(sceneId, (note) => ({ ...note, title }));
+  };
+
+  const handleCreateEncounterForScene = (sceneId: string, sceneTitle: string) => {
+    if (!sessionId) return;
+    const name = sceneTitle || "Untitled Encounter";
+    const encounter = createEncounterForCurrentSession({
+      name,
+      sessionId,
+      sceneNoteId: sceneId,
+    });
+    if (encounter) {
+      router.push({
+        pathname: "/prototype/dm-encounters",
+        query: { encounterId: encounter.id },
+      });
+    }
+  };
+
+  const sceneCategories = [
+    "Intro",
+    "Exploration",
+    "Social",
+    "Combat",
+    "Puzzle",
+    "Downtime",
+    "Boss",
+  ];
+
+  const sceneList = (
+    <div className="session-planner__rail">
+      <header className="session-planner__header">
+        <div>
+          <h1>Session Planner</h1>
+          <p>
+            Campaign: {currentCampaign?.name ?? "Loading..."} | Session:{" "}
+            {currentSession?.name ?? "None selected"}
+          </p>
+        </div>
+        <div className="session-planner__header-actions">
+          {currentSession && (
+            <Link
+              className="btn-primary"
+              href={`/prototype/dm-play?sessionId=${currentSession.id}${
+                selectedScene ? `&sceneId=${selectedScene.id}` : ""
+              }`}
+            >
+              Open Play Screen
+            </Link>
+          )}
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={handleCreateScene}
+            disabled={!sessionId}
+          >
+            New Scene
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={handleCreateSessionNote}
+            disabled={!sessionId}
+          >
+            New Session Note
+          </button>
+          {currentSession && (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() =>
+                setSessionDeleteModal({ open: true, removeChildren: true })
+              }
+            >
+              Delete Session
+            </button>
+          )}
+        </div>
+      </header>
+      <div className="session-planner__scenes">
+        {orderedScenes.length === 0 ? (
+          <p>No scenes yet. Create your first scene to start planning.</p>
+        ) : (
+          <ul>
+            {orderedScenes.map((scene, index) => (
+              <li
+                key={scene.id}
+                className={`session-planner__scene${
+                  scene.id === selectedSceneId ? " is-active" : ""
+                }`}
+                onClick={() => setSelectedSceneId(scene.id)}
+              >
+                <div>
+                  <input
+                    type="text"
+                    className="session-planner__scene-title field-input"
+                    value={scene.title || ""}
+                    onChange={(event) =>
+                      handleSceneTitleChange(scene.id, event.target.value)
+                    }
+                    placeholder="Scene title"
+                  />
+                  <div className="session-planner__scene-meta">
+                    <span>
+                      Updated {new Date(scene.updatedAt).toLocaleDateString()}
+                    </span>
+                    <select
+                      className="session-planner__badge-select field-select field-select--compact"
+                      value={scene.tags?.[0] || ""}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        handleSceneCategoryChange(scene.id, e.target.value);
+                      }}
+                    >
+                      <option value="">Uncategorized</option>
+                      {sceneCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {encountersByScene.get(scene.id)?.length ? (
+                    <div className="session-planner__scene-encounters">
+                      {encountersByScene.get(scene.id)!.map((encounter) => (
+                        <Link
+                          key={encounter.id}
+                          href={`/prototype/dm-encounters?encounterId=${encounter.id}`}
+                          className="session-planner__scene-encounter-chip"
+                        >
+                          {encounter.name}
+                          {encounter.difficulty && (
+                            <span className="session-planner__scene-encounter-diff">
+                              {encounter.difficulty}
+                            </span>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="session-planner__scene-actions">
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleMoveScene(scene.id, "up");
+                    }}
+                    disabled={index === 0}
+                  >
+                    Move Up
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleMoveScene(scene.id, "down");
+                    }}
+                    disabled={index === orderedScenes.length - 1}
+                  >
+                    Move Down
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/prototype/dm-notes?noteId=${scene.id}`);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCreateEncounterForScene(scene.id, scene.title);
+                    }}
+                  >
+                    Encounter
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openSceneDeleteModal(scene);
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+
+  const sessionNotesPanel = (
+    <div className="session-planner__session-notes">
+            <h3>Session Notes</h3>
+            {sessionNotes.length === 0 ? (
+              <p>No session-level notes yet.</p>
+            ) : (
+              <ul>
+                {sessionNotes.map((note) => (
+                  <li key={note.id} className="session-planner__session-note-row">
+                    <div>
+                      <strong>{note.title || "Untitled"}</strong>
+                      {currentSession?.primaryNoteId === note.id && (
+                        <span className="session-planner__badge">Primary</span>
+                      )}
+                    </div>
+                    <div className="session-planner__session-note-actions">
+                      <Link
+                        href={`/prototype/dm-notes?noteId=${note.id}`}
+                        className="btn-primary"
+                      >
+                        Open
+                      </Link>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() =>
+                          handleSetPrimaryNote(
+                            currentSession?.primaryNoteId === note.id ? null : note.id
+                          )
+                        }
+                      >
+                        {currentSession?.primaryNoteId === note.id
+                          ? "Clear Primary"
+                          : "Make Primary"}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="session-planner__beats-panel">
+            <div className="session-planner__beats-header">
+              <h3>Beats</h3>
+              <div className="session-planner__beats-form">
+                <input
+                  type="text"
+                  className="field-input"
+                  placeholder="Beat title"
+                  value={newBeat.title}
+                  onChange={(event) =>
+                    setNewBeat((prev) => ({ ...prev, title: event.target.value }))
+                  }
+                />
+                <input
+                  type="text"
+                  className="field-input"
+                  placeholder="Summary (optional)"
+                  value={newBeat.summary}
+                  onChange={(event) =>
+                    setNewBeat((prev) => ({ ...prev, summary: event.target.value }))
+                  }
+                />
+                <select
+                  className="field-select"
+                  value={newBeat.sceneNoteId}
+                  onChange={(event) =>
+                    setNewBeat((prev) => ({
+                      ...prev,
+                      sceneNoteId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">No linked scene</option>
+                  {orderedScenes.map((scene) => (
+                    <option key={scene.id} value={scene.id}>
+                      {scene.title || "Untitled Scene"}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="field-select"
+                  value={newBeat.encounterId}
+                  onChange={(event) =>
+                    setNewBeat((prev) => ({
+                      ...prev,
+                      encounterId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">No linked encounter</option>
+                  {encountersForSession.map((encounter) => (
+                    <option key={encounter.id} value={encounter.id}>
+                      {encounter.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleAddBeat}
+                  disabled={!newBeat.title.trim()}
+                >
+                  Add Beat
+                </button>
+              </div>
+            </div>
+            {beatsForSession.length === 0 ? (
+              <p>No beats linked to this session yet.</p>
+            ) : (
+              <ul className="session-planner__beats-list">
+                {beatsForSession.map((beat, index) => (
+                  <li key={beat.id} className="session-planner__beat-row">
+                    <div className="session-planner__beat-status">
+                      <button
+                        type="button"
+                        className={`dm-play__beat-status dm-play__beat-status--${beat.status}`}
+                        onClick={() => handleCycleBeatStatus(beat)}
+                      >
+                        {beat.status}
+                      </button>
+                      <div className="session-planner__beat-order">
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={() => handleMoveBeat(beat.id, "up")}
+                          disabled={index === 0}
+                        >
+                          Up
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={() => handleMoveBeat(beat.id, "down")}
+                          disabled={index === beatsForSession.length - 1}
+                        >
+                          Down
+                        </button>
+                      </div>
+                    </div>
+                    <div className="session-planner__beat-main">
+                      <strong>{beat.title}</strong>
+                      {beat.summary && <p>{beat.summary}</p>}
+                      <div className="session-planner__beat-links">
+                        {beat.sceneNoteId && (
+                          <span className="session-planner__badge">
+                            Scene:{" "}
+                            {orderedScenes.find((scene) => scene.id === beat.sceneNoteId)
+                              ?.title || "Untitled"}
+                          </span>
+                        )}
+                        {beat.encounterId && (
+                          <span className="session-planner__badge">
+                            Encounter:{" "}
+                            {
+                              encountersForSession.find(
+                                (encounter) => encounter.id === beat.encounterId
+                              )?.name
+                            }
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+        <section className="session-planner__column session-planner__column--right">
+          {selectedScene ? (
+            <div className="session-planner__preview">
+              <h2>{selectedScene.title || "Untitled Scene"}</h2>
+              <NoteDocRenderer doc={selectedScene.doc} mode="dm" />
+              {selectedScene.entityRefs?.length ? (
+                <div className="session-planner__entities">
+                  <h4>Entities</h4>
+                  <div>
+                    {selectedScene.entityRefs.map((ref) => (
+                      <span
+                        className="note-entity-chip"
+                        key={`${ref.source}:${ref.kind}:${ref.id}`}
+                      >
+                        <span className="note-entity-chip__kind">
+                          {ref.kind}
+                        </span>
+                        <span>{ref.label || ref.id}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {selectedSceneNpcs.length > 0 && (
+                <div className="session-planner__entities">
+                  <h4>NPCs in this scene</h4>
+                  <div>
+                    {selectedSceneNpcs.map((npc) => (
+                      <Link
+                        key={npc.id}
+                        href={{
+                          pathname: "/prototype/dm-roster",
+                          query: { entityId: npc.id },
+                        }}
+                        className="note-entity-chip"
+                      >
+                        <span className="note-entity-chip__kind">NPC</span>
+                        <span>{npc.name}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {encountersForSession.length > 0 && (
+                <div className="session-planner__encounters">
+                  <h4>Encounters for this session</h4>
+                  <ul>
+                  {encountersForSession.map((encounter) => (
+                    <li key={encounter.id}>
+                        <Link href={`/prototype/dm-encounters?encounterId=${encounter.id}`}>
+                          <strong>{encounter.name}</strong>
+                          {encounter.difficulty && (
+                            <span className="session-planner__scene-encounter-diff">
+                              {encounter.difficulty}
+                            </span>
+                          )}
+                        </Link>
+                        <span>
+                          {" "}
+                          · Created{" "}
+                          {new Date(encounter.createdAt).toLocaleDateString()}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="session-planner__preview">
+              <p>Select a scene from the left to preview it.</p>
+            </div>
+          )}
+        </section>
+      </div>
+    </DmLayout>
+      {sessionDeleteModal.open && currentSession && (
+        <div className="modal" role="dialog" aria-modal="true">
+          <div className="modal__content">
+            <h3>Delete Session</h3>
+            <p>
+              Delete <strong>{currentSession.name}</strong>? This action can also
+              remove all scenes, notes, encounters, and beats linked to this session.
+            </p>
+            <ul>
+              <li>{sceneNotes.length} scene note{sceneNotes.length === 1 ? "" : "s"}</li>
+              <li>{sessionNotes.length} session note{sessionNotes.length === 1 ? "" : "s"}</li>
+              <li>{encountersForSession.length} encounter{encountersForSession.length === 1 ? "" : "s"}</li>
+              <li>{beatsForSession.length} beat{beatsForSession.length === 1 ? "" : "s"}</li>
+            </ul>
+            <label className="modal__field modal__field--inline">
+              <input
+                type="checkbox"
+                checked={sessionDeleteModal.removeChildren}
+                onChange={(event) =>
+                  setSessionDeleteModal((prev) => ({
+                    ...prev,
+                    removeChildren: event.target.checked,
+                  }))
+                }
+              />
+              <span>Also delete linked scenes, encounters, beats, and notes</span>
+            </label>
+            <div className="modal__actions">
+              <button type="button" onClick={closeSessionDeleteModal}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleDeleteSession}
+              >
+                Delete Session
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {sceneDeleteModal.scene && (
+        <div className="modal" role="dialog" aria-modal="true">
+          <div className="modal__content">
+            <h3>Delete Scene</h3>
+            <p>
+              Delete <strong>{sceneDeleteModal.scene.title || "Untitled Scene"}</strong>?
+            </p>
+            <ul>
+              <li>
+                {(encountersByScene.get(sceneDeleteModal.scene.id)?.length ?? 0)} linked encounter
+                {(encountersByScene.get(sceneDeleteModal.scene.id)?.length ?? 0) === 1 ? "" : "s"}
+              </li>
+              <li>
+                {
+                  beatsForSession.filter(
+                    (beat) =>
+                      beat.sceneNoteId === sceneDeleteModal.scene?.id ||
+                      beat.noteId === sceneDeleteModal.scene?.id
+                  ).length
+                }{" "}
+                linked beat
+                {beatsForSession.filter(
+                  (beat) =>
+                    beat.sceneNoteId === sceneDeleteModal.scene?.id ||
+                    beat.noteId === sceneDeleteModal.scene?.id
+                ).length === 1
+                  ? ""
+                  : "s"}
+              </li>
+            </ul>
+            <div className="modal__actions">
+              <button type="button" onClick={closeSceneDeleteModal}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleDeleteScene}
+              >
+                Delete Scene
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default DmSessionPlannerPage;
