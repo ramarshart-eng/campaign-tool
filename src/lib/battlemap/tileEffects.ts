@@ -3,6 +3,7 @@
  * Applies tile effects to game mechanics (collision, hazards, etc)
  */
 
+import type { LayerLeaf } from "@/lib/battlemap/layers";
 import type { TileMetadata, TileEffect } from "@/lib/battlemap/tileMetadata";
 import {
   getTileMetadata,
@@ -22,10 +23,10 @@ export type PlacedTile = {
   mirrorX?: boolean;
   scale?: number;
   strokeId?: string;
-  layer: string;
   order: number;
   mirrorY?: boolean;
   layerId?: string | null;
+  layerRole?: LayerLeaf["role"] | null;
 };
 
 export type TileWithMetadata = PlacedTile & {

@@ -2,10 +2,12 @@ import React from "react";
 import type { NextPage } from "next";
 import Link from "next/link";
 import { useDmContext } from "@/lib/context/DmContext";
+import { useWorkingSession } from "@/lib/hooks/useWorkingSession";
 import DmLayout from "@/lib/components/layout/DmLayout";
 import type { CampaignArc, CampaignBeat, Session } from "@/lib/types/dm";
 
 const DmCampaignPlannerPage: NextPage = () => {
+  const { buildUrl } = useWorkingSession();
   const {
     state,
     currentCampaign,
@@ -219,7 +221,7 @@ const DmCampaignPlannerPage: NextPage = () => {
           <section className="dm-campaign__column dm-campaign__column--left">
             <div className="dm-campaign__column-header">
               <h3>Story Arcs</h3>
-              <button type="button" className="btn-primary" onClick={handleCreateArc}>
+              <button type="button" className="btn" onClick={handleCreateArc}>
                 New Arc
               </button>
             </div>
@@ -254,7 +256,7 @@ const DmCampaignPlannerPage: NextPage = () => {
           <section className="dm-campaign__column dm-campaign__column--center">
             <div className="dm-campaign__column-header">
               <h3>Sessions Timeline</h3>
-              <button type="button" className="btn-primary" onClick={handleCreateSession}>
+              <button type="button" className="btn" onClick={handleCreateSession}>
                 New Session
               </button>
             </div>
@@ -305,13 +307,13 @@ const DmCampaignPlannerPage: NextPage = () => {
                           <div className="dm-campaign__session-links">
                             <Link
                               href={`/prototype/dm-session-planner?sessionId=${session.id}`}
-                              className="btn-primary"
+                              className="btn"
                             >
                               Planner
                             </Link>
                             <Link
                               href={`/prototype/dm-play?sessionId=${session.id}`}
-                              className="btn-primary"
+                              className="btn"
                             >
                               Play
                             </Link>
@@ -362,13 +364,13 @@ const DmCampaignPlannerPage: NextPage = () => {
                         <div className="dm-campaign__session-links">
                           <Link
                             href={`/prototype/dm-session-planner?sessionId=${session.id}`}
-                            className="btn-primary"
+                            className="btn"
                           >
                             Planner
                           </Link>
                           <Link
                             href={`/prototype/dm-play?sessionId=${session.id}`}
-                            className="btn-primary"
+                            className="btn"
                           >
                             Play
                           </Link>
@@ -433,7 +435,7 @@ const DmCampaignPlannerPage: NextPage = () => {
                 <div className="dm-campaign__arc-actions">
                   <button
                     type="button"
-                    className="btn-primary"
+                    className="btn"
                     onClick={handleOpenArcDeleteModal}
                   >
                     Delete arc
@@ -457,7 +459,7 @@ const DmCampaignPlannerPage: NextPage = () => {
                       />
                       <button
                         type="button"
-                        className="btn-primary"
+                        className="btn"
                         onClick={handleAddArcBeat}
                         disabled={!newBeatTitle.trim()}
                       >
@@ -542,7 +544,7 @@ const DmCampaignPlannerPage: NextPage = () => {
               </button>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn"
                 onClick={handleConfirmCampaignDelete}
               >
                 Delete Campaign
@@ -588,7 +590,7 @@ const DmCampaignPlannerPage: NextPage = () => {
               </button>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn"
                 onClick={handleConfirmArcDelete}
               >
                 Delete Arc

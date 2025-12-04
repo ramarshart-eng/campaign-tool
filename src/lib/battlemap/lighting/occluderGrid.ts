@@ -8,10 +8,12 @@ import { enrichTileWithMetadata } from "@/lib/battlemap/tileEffects";
 import { hasTileEffect } from "@/lib/battlemap/tileMetadata";
 
 export type OccluderGrid = {
-  /** Map of "cellX,cellY,subX,subY" -> opacity (0-1) */
+  /** Map of "cellX,cellY,subX,subY" -> binary opacity (0 or 1) */
   data: Map<string, number>;
   /** Resolution: how many sub-samples per cell (e.g., 4 = 4x4 grid per cell) */
   resolution: number;
+  /** Version: incremented on rebuild; use for cache invalidation */
+  version: number;
 };
 
 /**
@@ -27,107 +29,143 @@ function getTileSizeCells(src: string): { w: number; h: number } {
 
 /**
  * Build an occluder grid from tiles with collision effects
- * Samples alpha channel at sub-cell resolution for accurate shadows
+ * Samples alpha channel at sub-cell resolution using native image dimensions
+ * to match exactly how tiles are rendered on the main canvas.
  *
  * @param tiles - All placed tiles on the map
  * @param imageCache - Cache of loaded tile images
  * @param resolution - Sub-samples per cell (4 = 4x4 grid per cell, 16 samples total)
- * @returns OccluderGrid with alpha values
+ * @param alphaThreshold - Alpha threshold for binarization; default 0 (any alpha > 0 is opaque)
+ * @param cellSize - Size of one grid cell in pixels
+ * @returns OccluderGrid with binary opacity values
  */
 export async function buildOccluderGrid(
   tiles: PlacedTile[],
   imageCache: Map<string, HTMLImageElement>,
-  resolution: number = 4
+  resolution: number = 4,
+  alphaThreshold: number = 0,
+  cellSize: number = 1
 ): Promise<OccluderGrid> {
   const occluders = new Map<string, number>();
 
-  // Create a temporary canvas for sampling alpha
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) {
-    return { data: occluders, resolution };
+    return { data: occluders, resolution, version: 1 };
   }
 
+  const safeCellSize = cellSize > 0 ? cellSize : 1;
+  const samplesPerCell = Math.max(1, Math.floor(resolution));
   let processedCount = 0;
+
   for (const tile of tiles) {
-    // Check if this tile blocks light (has collision effect)
     const enriched = enrichTileWithMetadata(tile);
     if (!enriched || !hasTileEffect(enriched.metadata, "collision")) {
       continue;
     }
-
     processedCount++;
-    if (processedCount <= 3) {
-      console.log("[OccluderGrid] Processing tile:", {
-        src: tile.src,
-        cellX: tile.cellX,
-        cellY: tile.cellY,
-        effects: enriched.metadata.effects,
-      });
-    }
 
     const img = imageCache.get(tile.src);
     if (!img || !img.complete || img.width === 0 || img.height === 0) {
       continue;
     }
 
-    // Get tile dimensions
+    // Get tile footprint for computing center position
     const baseSpan = getTileSizeCells(tile.src);
     const footprint =
       tile.rotationIndex % 2 === 0
         ? { w: baseSpan.w, h: baseSpan.h }
         : { w: baseSpan.h, h: baseSpan.w };
 
-    // Resize canvas to sample the tile at sub-cell resolution
-    const samplesPerCell = resolution;
-    const totalSamplesW = footprint.w * samplesPerCell;
-    const totalSamplesH = footprint.h * samplesPerCell;
-    canvas.width = totalSamplesW;
-    canvas.height = totalSamplesH;
+    // Tile center in cell coordinates (matches main canvas rendering)
+    const tileCenterX =
+      typeof tile.centerX === "number"
+        ? tile.centerX
+        : tile.cellX + footprint.w / 2;
+    const tileCenterY =
+      typeof tile.centerY === "number"
+        ? tile.centerY
+        : tile.cellY + footprint.h / 2;
 
-    // Clear and draw the tile image
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Native image dimensions in cells (this is what actually renders)
+    const imgWidthCells = img.width / safeCellSize;
+    const imgHeightCells = img.height / safeCellSize;
+
+    // Sample at reasonable resolution (scale down large images for performance)
+    const maxSampleDim = 256;
+    const sampleScale = Math.min(
+      1,
+      maxSampleDim / Math.max(img.width, img.height)
+    );
+    const sampleW = Math.max(1, Math.round(img.width * sampleScale));
+    const sampleH = Math.max(1, Math.round(img.height * sampleScale));
+
+    canvas.width = sampleW;
+    canvas.height = sampleH;
+
+    ctx.clearRect(0, 0, sampleW, sampleH);
     ctx.save();
+    ctx.translate(sampleW / 2, sampleH / 2);
 
-    // Handle rotation and mirroring
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    ctx.translate(centerX, centerY);
-
+    // Apply rotation
     if (tile.rotationIndex) {
       ctx.rotate((tile.rotationIndex * Math.PI) / 2);
     }
 
-    const scaleX = tile.mirrorX ? -1 : 1;
-    const scaleY = tile.mirrorY ? -1 : 1;
-    ctx.scale(scaleX, scaleY);
+    // Apply mirroring
+    ctx.scale(tile.mirrorX ? -1 : 1, tile.mirrorY ? -1 : 1);
 
-    ctx.drawImage(img, -centerX, -centerY, canvas.width, canvas.height);
+    // Draw at native aspect ratio, centered
+    ctx.drawImage(img, -sampleW / 2, -sampleH / 2, sampleW, sampleH);
     ctx.restore();
 
-    // Sample alpha channel
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, sampleW, sampleH);
     const pixels = imageData.data;
 
-    // Store alpha values in grid
-    for (let subY = 0; subY < totalSamplesH; subY++) {
-      for (let subX = 0; subX < totalSamplesW; subX++) {
-        const pixelIndex = (subY * totalSamplesW + subX) * 4;
-        const alpha = pixels[pixelIndex + 3] / 255; // Normalize to 0-1
+    // After rotation, the oriented dimensions in cells
+    const isRightAngle = (tile.rotationIndex ?? 0) % 2 !== 0;
+    const orientedWidthCells = isRightAngle ? imgHeightCells : imgWidthCells;
+    const orientedHeightCells = isRightAngle ? imgWidthCells : imgHeightCells;
 
-        // Store all alpha values (even small ones) to capture fine edge detail
-        if (alpha > 0) {
-          // Map to world grid coordinates
-          const worldCellX = tile.cellX + Math.floor(subX / samplesPerCell);
-          const worldCellY = tile.cellY + Math.floor(subY / samplesPerCell);
-          const localSubX = subX % samplesPerCell;
-          const localSubY = subY % samplesPerCell;
+    // World bounds of the rendered tile (centered on tileCenterX/Y)
+    const worldLeft = tileCenterX - orientedWidthCells / 2;
+    const worldTop = tileCenterY - orientedHeightCells / 2;
 
-          const key = `${worldCellX},${worldCellY},${localSubX},${localSubY}`;
+    // Map each sampled pixel to world coordinates
+    for (let py = 0; py < sampleH; py++) {
+      for (let px = 0; px < sampleW; px++) {
+        const pixelIndex = (py * sampleW + px) * 4;
+        const alpha = pixels[pixelIndex + 3];
 
-          // Use max opacity if multiple tiles overlap
-          const existing = occluders.get(key) || 0;
-          occluders.set(key, Math.max(existing, alpha));
+        // Binarize: treat any alpha above threshold as fully opaque
+        if (alpha > alphaThreshold * 255) {
+          // Map pixel position to world cell coordinates
+          // px/sampleW gives 0..1 fraction across the (rotated) image
+          const fracX = (px + 0.5) / sampleW;
+          const fracY = (py + 0.5) / sampleH;
+
+          const worldX = worldLeft + fracX * orientedWidthCells;
+          const worldY = worldTop + fracY * orientedHeightCells;
+
+          const worldCellX = Math.floor(worldX);
+          const worldCellY = Math.floor(worldY);
+
+          const cellFracX = worldX - worldCellX;
+          const cellFracY = worldY - worldCellY;
+
+          const localSubX = Math.max(
+            0,
+            Math.min(samplesPerCell - 1, Math.floor(cellFracX * samplesPerCell))
+          );
+          const localSubY = Math.max(
+            0,
+            Math.min(samplesPerCell - 1, Math.floor(cellFracY * samplesPerCell))
+          );
+
+          occluders.set(
+            `${worldCellX},${worldCellY},${localSubX},${localSubY}`,
+            1
+          );
         }
       }
     }
@@ -137,9 +175,10 @@ export async function buildOccluderGrid(
     processedTiles: processedCount,
     totalOccluders: occluders.size,
     resolution,
+    alphaThreshold,
   });
 
-  return { data: occluders, resolution };
+  return { data: occluders, resolution, version: 1 };
 }
 
 /**
@@ -154,15 +193,22 @@ export function sampleOccluderGrid(
   x: number,
   y: number
 ): number {
+  // Binary occlusion: return 1 if any nearby sample is opaque, 0 otherwise
+  // Since occluders are binarized, we check the nearest sub-sample
   const cellX = Math.floor(x);
   const cellY = Math.floor(y);
   const fracX = x - cellX;
   const fracY = y - cellY;
 
-  const subX = Math.floor(fracX * grid.resolution);
-  const subY = Math.floor(fracY * grid.resolution);
+  const sx = fracX * grid.resolution;
+  const sy = fracY * grid.resolution;
+  const subX = Math.round(sx);
+  const subY = Math.round(sy);
 
-  const key = `${cellX},${cellY},${subX},${subY}`;
+  const clampedSubX = Math.max(0, Math.min(subX, grid.resolution - 1));
+  const clampedSubY = Math.max(0, Math.min(subY, grid.resolution - 1));
+
+  const key = `${cellX},${cellY},${clampedSubX},${clampedSubY}`;
   return grid.data.get(key) || 0;
 }
 

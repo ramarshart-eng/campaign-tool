@@ -36,45 +36,67 @@ export function castRay(
 
   const clampedDist = Math.min(totalDist, maxDistance);
 
-  // Sample at very high resolution for precise alpha detection (0.0625 cells = 16 samples per cell)
-  const stepSize = 0.0625;
-  const steps = Math.ceil(clampedDist / stepSize);
-
   // Normalized direction
   const dirX = dx / totalDist;
   const dirY = dy / totalDist;
 
+  // Adaptive stepping: start coarse, refine when encountering opacity
+  const coarseStep = Math.max(0.25, 1 / occluderGrid.resolution);
+  const fineStep = Math.min(0.0625, 1 / (occluderGrid.resolution * 2));
+
   let accumulatedOpacity = 0;
-  let currentDistance = 0;
+  let d = 0;
 
-  for (let i = 1; i <= steps; i++) {
-    currentDistance = (i / steps) * clampedDist;
-    const x = x0 + dirX * currentDistance;
-    const y = y0 + dirY * currentDistance;
-
-    // Sample occluder grid at this position
+  while (d < clampedDist) {
+    d = Math.min(d + coarseStep, clampedDist);
+    const x = x0 + dirX * d;
+    const y = y0 + dirY * d;
     const opacity = sampleOccluderGrid(occluderGrid, x, y);
 
-    // Accumulate opacity with exponential falloff model
-    // This simulates light absorption through semi-transparent media
-    if (opacity > 0) {
-      // Each step absorbs light based on opacity and step size
-      const absorption = opacity * stepSize;
-      accumulatedOpacity += absorption * (1 - accumulatedOpacity);
-
-      // Early exit if we hit solid geometry (opacity > 0.5)
-      // OR if accumulated opacity is significantly blocked
-      if (opacity > 0.5 || accumulatedOpacity >= 0.3) {
-        return {
-          opacity: Math.max(opacity, accumulatedOpacity),
-          distance: currentDistance,
-        };
+    if (opacity > 0.02) {
+      // Refine: binary search around this region to find first significant hit
+      let low = d - coarseStep;
+      let high = d;
+      let hitDist = high;
+      for (let i = 0; i < 6; i++) {
+        const mid = (low + high) / 2;
+        const mx = x0 + dirX * mid;
+        const my = y0 + dirY * mid;
+        const mo = sampleOccluderGrid(occluderGrid, mx, my);
+        if (mo > 0.05) {
+          hitDist = mid;
+          high = mid;
+        } else {
+          low = mid;
+        }
       }
+
+      // March forward with fine steps to accumulate opacity through semi-transparency
+      let dd = hitDist;
+      let localOpacity = 0;
+      for (let i = 0; i < 16 && dd < clampedDist; i++) {
+        dd = Math.min(dd + fineStep, clampedDist);
+        const fx = x0 + dirX * dd;
+        const fy = y0 + dirY * dd;
+        const fo = sampleOccluderGrid(occluderGrid, fx, fy);
+        const absorption = fo * fineStep;
+        localOpacity += absorption * (1 - localOpacity);
+        if (fo > 0.6 || localOpacity >= 0.35) {
+          accumulatedOpacity = Math.max(accumulatedOpacity, localOpacity);
+          return { opacity: Math.max(fo, accumulatedOpacity), distance: dd };
+        }
+      }
+
+      accumulatedOpacity = Math.max(accumulatedOpacity, localOpacity);
+      if (accumulatedOpacity >= 0.35) {
+        return { opacity: accumulatedOpacity, distance: dd };
+      }
+
+      // Continue coarse stepping beyond refined region
+      d = dd;
     }
   }
 
-  // If we made it through the whole ray, return the actual distance traveled
-  // Even if some opacity accumulated, the ray reached its full distance
   return { opacity: accumulatedOpacity, distance: clampedDist };
 }
 

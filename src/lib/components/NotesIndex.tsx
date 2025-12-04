@@ -234,10 +234,10 @@ const NotesIndex: React.FC<Props> = ({ leftRef, entries, activeId, onSelectEntry
   return (
     <div className="flex flex-col gap-2">
       <div className="book__title">Index</div>
-      <div className="book__index-bar mt-1" style={{ display: "flex", gap: ".5rem", alignItems: "center" }}>
+      <div className="book__index-bar mt-1 flex gap-sm items-center">
         <input
           type="text"
-          className="book__title-input book__title-input--grow"
+          className="input flex-1 min-w-0"
           placeholder="New category (use '>' for subcategories)"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -248,7 +248,7 @@ const NotesIndex: React.FC<Props> = ({ leftRef, entries, activeId, onSelectEntry
           }}
           aria-label="Add category"
         />
-        <button type="button" className="btn-primary" onClick={onNewEntry}>New Entry</button>
+        <button type="button" className="btn btn--primary" onClick={onNewEntry}>New Entry</button>
       </div>
       <div className="book__index">
         <ul
@@ -275,7 +275,7 @@ const NotesIndex: React.FC<Props> = ({ leftRef, entries, activeId, onSelectEntry
           )}
           {menu.open && menu.id && createPortal(
             <div
-              className="context-menu"
+              className="context-menu card"
               style={{ top: `${menu.y}px`, left: `${menu.x}px` }}
               role="menu"
               onContextMenu={(e) => e.preventDefault()}
@@ -283,7 +283,7 @@ const NotesIndex: React.FC<Props> = ({ leftRef, entries, activeId, onSelectEntry
             >
               <button
                 type="button"
-                className="context-menu__item"
+                className="context-menu__item btn btn--ghost"
                 onClick={() => {
                   const id = menu.id as string;
                   setMenu({ open: false, x: 0, y: 0, id: null });
@@ -303,7 +303,7 @@ const NotesIndex: React.FC<Props> = ({ leftRef, entries, activeId, onSelectEntry
                 <button
                   key={`assign-${c}`}
                   type="button"
-                  className="context-menu__item"
+                  className="context-menu__item btn btn--ghost"
                   onClick={() => {
                     setMenu({ open: false, x: 0, y: 0, id: null });
                     if (menu.id) onAssignEntry(menu.id, c);
@@ -315,7 +315,7 @@ const NotesIndex: React.FC<Props> = ({ leftRef, entries, activeId, onSelectEntry
               <hr />
               <button
                 type="button"
-                className="context-menu__item"
+                className="context-menu__item btn btn--ghost"
                 onClick={() => {
                   setMenu({ open: false, x: 0, y: 0, id: null });
                   if (menu.id) onClearEntryCategory(menu.id);
@@ -326,7 +326,7 @@ const NotesIndex: React.FC<Props> = ({ leftRef, entries, activeId, onSelectEntry
               <hr />
               <button
                 type="button"
-                className="context-menu__item"
+                className="context-menu__item btn btn--danger"
                 onClick={() => {
                   setMenu({ open: false, x: 0, y: 0, id: null });
                   if (onDeleteEntry && menu.id) onDeleteEntry(menu.id);
@@ -339,7 +339,7 @@ const NotesIndex: React.FC<Props> = ({ leftRef, entries, activeId, onSelectEntry
           )}
           {catMenu.open && catMenu.path && createPortal(
             <div
-              className="context-menu"
+              className="context-menu card"
               style={{ top: `${catMenu.y}px`, left: `${catMenu.x}px` }}
               role="menu"
               onContextMenu={(e) => e.preventDefault()}
@@ -347,14 +347,14 @@ const NotesIndex: React.FC<Props> = ({ leftRef, entries, activeId, onSelectEntry
             >
               <button
                 type="button"
-                className="context-menu__item"
+                className="context-menu__item btn btn--ghost"
                 onClick={() => { const p = catMenu.path as string; setCatMenu({ open: false, x: 0, y: 0, path: null }); setNewSubFor(p); setNewSubName(""); }}
               >
                 New subcategory
               </button>
               <button
                 type="button"
-                className="context-menu__item"
+                className="context-menu__item btn btn--ghost"
                 onClick={() => { const p = catMenu.path as string; setCatMenu({ open: false, x: 0, y: 0, path: null }); setRenameFor(p); setRenameName(p.split(" > ").pop() || ""); }}
               >
                 Rename
@@ -362,7 +362,7 @@ const NotesIndex: React.FC<Props> = ({ leftRef, entries, activeId, onSelectEntry
               <hr />
               <button
                 type="button"
-                className="context-menu__item"
+                className="context-menu__item btn btn--danger"
                 onClick={() => { const p = catMenu.path as string; setCatMenu({ open: false, x: 0, y: 0, path: null }); onDeleteCategoryRequest(p); }}
               >
                 Delete

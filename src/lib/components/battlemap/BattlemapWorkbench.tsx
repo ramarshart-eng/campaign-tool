@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import BattlemapCanvas from "@/lib/components/battlemap/BattlemapCanvas";
 import BattlemapLayersPanel from "@/lib/components/battlemap/BattlemapLayersPanel";
+import { useDmContext } from "@/lib/context/DmContext";
 import {
   LayerStack,
   LayerLeaf,
@@ -35,13 +36,21 @@ type VisibilityPreset = {
   visibleLayerIds: LayerId[];
 };
 
+export interface BattlemapWorkbenchProps {
+  /** Map ID to load/save state to DmContext */
+  mapId?: string | null;
+  /** Called when map is saved */
+  onSave?: (layerData: string) => void;
+}
+
 const DEFAULT_MAP_SEED = Math.random().toString(36).slice(2, 10);
 const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2, 10);
 
-const BattlemapWorkbench: React.FC = () => {
+const BattlemapWorkbench: React.FC<BattlemapWorkbenchProps> = ({ mapId, onSave }) => {
+  const { getMapById, updateMapForCurrent } = useDmContext();
   const initialLayers = useMemo(() => {
     const base = createDefaultLayerStack();
     const bg = findLayerByRole(base, "background");
@@ -106,17 +115,14 @@ const BattlemapWorkbench: React.FC = () => {
   const [maps, setMaps] = useState([
     { id: "map-1", name: "Map 1", seed: DEFAULT_MAP_SEED },
   ]);
-  const [selectedMapId, setSelectedMapId] = useState("map-1");
-
-  // Restore the last selected map ID on mount so reload loads the correct map and tiles
-  useEffect(() => {
+  const [selectedMapId, setSelectedMapId] = useState(() => {
+    if (typeof window === "undefined") return "map-1";
     try {
-      const lastMapId = localStorage.getItem("battlemap:lastSelectedMapId");
-      if (lastMapId) {
-        setSelectedMapId(lastMapId);
-      }
-    } catch {}
-  }, []);
+      return localStorage.getItem("battlemap:lastSelectedMapId") ?? "map-1";
+    } catch {
+      return "map-1";
+    }
+  });
 
   const [environments, setEnvironments] = useState<
     Array<{
@@ -167,6 +173,34 @@ const BattlemapWorkbench: React.FC = () => {
   const [selectTilesLayerIds, setSelectTilesLayerIds] = useState<
     string[] | null
   >(null);
+
+  // Load saved layer data from DmContext when mapId changes
+  React.useEffect(() => {
+    if (!mapId) return;
+    const map = getMapById(mapId);
+    if (map?.layerData) {
+      try {
+        const savedLayers = JSON.parse(map.layerData) as LayerStack;
+        setLayers(savedLayers);
+      } catch (e) {
+        console.warn("Failed to load layer data:", e);
+      }
+    }
+  }, [mapId, getMapById]);
+
+  // Auto-save layer data to DmContext
+  React.useEffect(() => {
+    if (!mapId) return;
+    const timeoutId = setTimeout(() => {
+      const layerDataStr = JSON.stringify(layers);
+      updateMapForCurrent(mapId, (map) => ({
+        ...map,
+        layerData: layerDataStr,
+      }));
+      onSave?.(layerDataStr);
+    }, 2000); // Debounce saves by 2 seconds
+    return () => clearTimeout(timeoutId);
+  }, [layers, mapId, updateMapForCurrent, onSave]);
 
   const toTitle = (slug: string) =>
     slug
@@ -385,39 +419,12 @@ const BattlemapWorkbench: React.FC = () => {
     return `rgba(${r}, ${g}, ${b}, ${a})`;
   };
 
-  const legacyLayerKeys = [
-    "background",
-    "floor",
-    "structure",
-    "lighting",
-    "props",
-    "decoration",
-  ] as const;
-  const selectedLegacyLayer = useMemo<(typeof legacyLayerKeys)[number] | null>(
-    () =>
-      (selectedLayerIds.find((id) =>
-        (legacyLayerKeys as readonly string[]).includes(id)
-      ) as (typeof legacyLayerKeys)[number]) ?? null,
-    [selectedLayerIds]
-  );
   const selectedLayerNode = useMemo(() => {
     const selectedId = selectedLayerIds[0];
     if (!selectedId) return null;
     const node = layers.nodes[selectedId];
     return node?.type === "layer" ? node : null;
   }, [selectedLayerIds, layers]);
-  const legacyLayerIds = useMemo<
-    Partial<Record<(typeof legacyLayerKeys)[number], string>>
-  >(() => {
-    const map: Partial<Record<(typeof legacyLayerKeys)[number], string>> = {};
-    legacyLayerKeys.forEach((k) => {
-      const node = layers.nodes[k];
-      if (node && node.type === "layer") {
-        map[k] = node.id;
-      }
-    });
-    return map;
-  }, [layers]);
 
   return (
     <div className="battlemap-page">
@@ -435,6 +442,7 @@ const BattlemapWorkbench: React.FC = () => {
           onCreateGroup={handleCreateGroup}
           onDuplicateLayer={handleDuplicateLayer}
           onDeleteLayers={handleDeleteLayers}
+          onReorder={handleReorder}
           onToggleVisibility={handleToggleVisibility}
           onToggleLock={handleToggleLock}
           onRenameLayer={handleRenameLayer}
@@ -503,8 +511,6 @@ const BattlemapWorkbench: React.FC = () => {
               )
             }
             snapDebug={snapDebug}
-            selectedLayerKey={selectedLegacyLayer}
-            legacyLayerIds={legacyLayerIds}
             layers={layers}
             soloLayerId={soloLayerId}
             selectedLayerId={selectedLayerIds[0] ?? null}
@@ -517,7 +523,7 @@ const BattlemapWorkbench: React.FC = () => {
               const grid = findLayerByRole(stack, "grid");
               let next = stack;
               const nextNodes = { ...stack.nodes };
-              let nextRootIds = [...stack.rootIds];
+              const nextRootIds = [...stack.rootIds];
 
               if (bg && !bg.locked) {
                 nextNodes[bg.id] = { ...bg, locked: true };

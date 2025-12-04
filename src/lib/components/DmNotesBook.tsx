@@ -201,15 +201,18 @@ const DmNotesBook: React.FC = () => {
     (scopeFilter === "session" && !!currentSession);
 
   return (
-    <div className="dm-notesbook">
-      <div className="dm-notesbook__body">
-        <aside className="dm-notesbook__toolbar">
-          <div className="dm-notesbook__section">
-            <p className="dm-notesbook__section-title">Notes Scope</p>
+    <div className="page">
+      <div className="page__body">
+        <div className="page__sidebar">
+          <div className="card">
+            <div className="card__header">
+              <h3 className="card__title">Notes Scope</h3>
+            </div>
+            <div className="card__body gap-sm">
             <div className="dm-notesbook__button-stack">
               <button
                 type="button"
-                className={`btn-primary${
+                className={`btn btn--primary${
                   scopeFilter === "campaign" ? " is-active" : ""
                 }`}
                 onClick={() => {
@@ -221,7 +224,7 @@ const DmNotesBook: React.FC = () => {
               </button>
               <button
                 type="button"
-                className={`btn-primary${
+                className={`btn btn--primary${
                   scopeFilter === "session" ? " is-active" : ""
                 }`}
                 onClick={() => {
@@ -235,11 +238,11 @@ const DmNotesBook: React.FC = () => {
               </button>
             </div>
             {scopeFilter === "session" && (
-              <div className="dm-notesbook__session-controls">
-                <label htmlFor="session-select">Session</label>
+              <div className="flex flex-col gap-sm">
+                <label className="label" htmlFor="session-select">Session</label>
                 <select
                   id="session-select"
-                  className="field-select field-select--compact"
+                  className="select select--sm"
                   value={currentSession?.id ?? ""}
                   onChange={(e) => setCurrentSessionId(e.target.value)}
                   disabled={!sessionsForCurrent.length}
@@ -252,36 +255,40 @@ const DmNotesBook: React.FC = () => {
                 </select>
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn btn--primary"
                   onClick={handleCreateSession}
                 >
                   New session
                 </button>
               </div>
             )}
-            <div className="dm-notesbook__search">
+            <div className="flex flex-col gap-sm">
               <input
                 type="text"
-                className="field-input field-input--compact"
+                className="input input--sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search notes"
               />
             </div>
+            </div>
           </div>
-          <div className="dm-notesbook__section">
-            <p className="dm-notesbook__section-title">Editor Mode</p>
+          <div className="card">
+            <div className="card__header">
+              <h3 className="card__title">Editor Mode</h3>
+            </div>
+            <div className="card__body gap-sm">
             <div className="dm-notesbook__button-stack">
               <button
                 type="button"
-                className={`btn-primary${mode === "dm" ? " is-active" : ""}`}
+                className={`btn btn--primary${mode === "dm" ? " is-active" : ""}`}
                 onClick={() => setMode("dm")}
               >
                 Edit (DM)
               </button>
               <button
                 type="button"
-                className={`btn-primary${
+                className={`btn btn--primary${
                   mode === "playerPreview" ? " is-active" : ""
                 }`}
                 onClick={() => setMode("playerPreview")}
@@ -289,11 +296,15 @@ const DmNotesBook: React.FC = () => {
                 Player preview
               </button>
             </div>
+            </div>
           </div>
-          <div className="dm-notesbook__section">
-            <p className="dm-notesbook__section-title">Entities</p>
+          <div className="card">
+            <div className="card__header">
+              <h3 className="card__title">Entities</h3>
+            </div>
+            <div className="card__body gap-sm">
             <select
-              className="field-select field-select--compact"
+              className="select select--sm"
               onChange={(e) => {
                 if (!e.target.value) return;
                 handleInsertEntity(e.target.value);
@@ -307,10 +318,10 @@ const DmNotesBook: React.FC = () => {
                 </option>
               ))}
             </select>
-            <div className="dm-notesbook__entity-buttons">
+            <div className="flex gap-sm">
               <button
                 type="button"
-                className="btn-primary"
+                className="btn btn--primary"
                 onClick={() =>
                   setEntityModal({
                     open: true,
@@ -325,7 +336,7 @@ const DmNotesBook: React.FC = () => {
               </button>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn btn--primary"
                 onClick={() =>
                   setEntityModal({
                     open: true,
@@ -339,32 +350,41 @@ const DmNotesBook: React.FC = () => {
                 + Location
               </button>
             </div>
+            </div>
           </div>
-        </aside>
-        <section className="dm-notesbook__main">
+        </div>
+        <div className="page__main">
           {active ? (
-            <div className="dm-notesbook__editor">
-              <RichNotesEditor
-                doc={active.doc}
-                onChange={handleDocChange}
-                title={active.title}
-                onTitleChange={handleTitleChange}
-                mode={mode}
-                readOnly={false}
-                titleActions={
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={handleNewNote}
-                    disabled={!canCreateNote}
-                  >
-                    New note
-                  </button>
-                }
-              />
+            <div className="card" style={{ flex: 1 }}>
+              <div className="card__header">
+                <h3 className="card__title">Editor</h3>
+              </div>
+              <div className="card__body" style={{ flex: 1 }}>
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <RichNotesEditor
+                  doc={active.doc}
+                  onChange={handleDocChange}
+                  title={active.title}
+                  onTitleChange={handleTitleChange}
+                  mode={mode}
+                  readOnly={false}
+                  titleActions={
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      onClick={handleNewNote}
+                      disabled={!canCreateNote}
+                    >
+                      New note
+                    </button>
+                  }
+                />
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="dm-notesbook__empty dm-notesbook__empty--standalone">
+            <div className="card">
+              <div className="card__body gap-sm">
               {filteredNotes.length === 0 ? (
                 scopeFilter === "campaign" ? (
                   <>
@@ -374,7 +394,7 @@ const DmNotesBook: React.FC = () => {
                     </p>
                     <button
                       type="button"
-                      className="btn-primary"
+                      className="btn btn--primary"
                       onClick={handleCreateCampaignOverview}
                     >
                       Create Campaign Overview
@@ -387,7 +407,7 @@ const DmNotesBook: React.FC = () => {
                     <p>No notes for this session yet.</p>
                     <button
                       type="button"
-                      className="btn-primary"
+                      className="btn btn--primary"
                       onClick={handleNewNote}
                       disabled={!canCreateNote}
                     >
@@ -398,11 +418,15 @@ const DmNotesBook: React.FC = () => {
               ) : (
                 <p>Select a note to begin editing.</p>
               )}
+              </div>
             </div>
           )}
           {referenceData.length > 0 && (
-            <div className="dm-notesbook__refs">
-              <h4>References</h4>
+            <div className="card mt-sm">
+              <div className="card__header">
+                <h3 className="card__title">References</h3>
+              </div>
+              <div className="card__body">
               <ul>
                 {referenceData.map(({ ref, count }) => (
                   <li key={`${ref.source}:${ref.kind}:${ref.id}`}>
@@ -416,11 +440,15 @@ const DmNotesBook: React.FC = () => {
                   </li>
                 ))}
               </ul>
+              </div>
             </div>
           )}
           {encountersForActive.length > 0 && (
-            <div className="dm-notesbook__encounters">
-              <h4>Encounters</h4>
+            <div className="card mt-sm">
+              <div className="card__header">
+                <h3 className="card__title">Encounters</h3>
+              </div>
+              <div className="card__body">
               <ul>
                 {encountersForActive.map((encounter) => (
                   <li key={encounter.id}>
@@ -441,68 +469,74 @@ const DmNotesBook: React.FC = () => {
                   </li>
                 ))}
               </ul>
+              </div>
             </div>
           )}
-        </section>
-        <aside className="dm-notesbook__note-sidebar">
-          <div className="dm-notesbook__note-sidebar-header">
-            <h3>Notes</h3>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => active && handleDeleteNote(active.id)}
-              disabled={!active}
-            >
-              Delete
-            </button>
+        </div>
+        {/* Right sidebar: notes list */}
+        <div className="page__sidebar">
+          <div className="card">
+            <div className="card__header flex items-center justify-between">
+              <h3 className="card__title">Notes</h3>
+              <button
+                type="button"
+                className="btn btn--danger"
+                onClick={() => active && handleDeleteNote(active.id)}
+                disabled={!active}
+              >
+                Delete
+              </button>
+            </div>
+            <div className="card__body">
+              <ul className="list">
+                {filteredNotes.map((note) => (
+                  <li key={note.id}>
+                    <button
+                      type="button"
+                      className={`list-item list-item--interactive${
+                        active && active.id === note.id ? " is-active" : ""
+                      }`}
+                      onClick={() => setActiveId(note.id)}
+                    >
+                      <strong>{note.title || "Untitled"}</strong>
+                      <small className="text-xs text-muted">{new Date(note.updatedAt).toLocaleDateString()}</small>
+                    </button>
+                  </li>
+                ))}
+                {filteredNotes.length === 0 && (
+                  <li className="text-center text-muted">
+                    <p>No notes available for this scope.</p>
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      onClick={handleNewNote}
+                      disabled={!canCreateNote}
+                    >
+                      Create note
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </div>
           </div>
-          <ul className="dm-notesbook__note-list">
-            {filteredNotes.map((note) => (
-              <li key={note.id}>
-                <button
-                  type="button"
-                  className={`dm-notesbook__note-link${
-                    active && active.id === note.id ? " is-active" : ""
-                  }`}
-                  onClick={() => setActiveId(note.id)}
-                >
-                  <strong>{note.title || "Untitled"}</strong>
-                  <span>{new Date(note.updatedAt).toLocaleDateString()}</span>
-                </button>
-              </li>
-            ))}
-            {filteredNotes.length === 0 && (
-              <li className="dm-notesbook__note-empty">
-                <p>No notes available for this scope.</p>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={handleNewNote}
-                  disabled={!canCreateNote}
-                >
-                  Create note
-                </button>
-              </li>
-            )}
-          </ul>
-        </aside>
+        </div>
       </div>
       {entityModal.open && (
         <div className="modal">
-          <div className="modal__content">
+          <div className="modal__content card">
             <h3>Create {entityModal.kind}</h3>
-            <label className="modal__field field-label">
+            <label className="modal__field label">
               Name
               <input
                 type="text"
-                className="field-input"
+                className="input"
                 value={entityModal.name}
                 onChange={(e) =>
                   setEntityModal((prev) => ({ ...prev, name: e.target.value }))
                 }
               />
             </label>
-            <label className="modal__field field-label">
+            <label className="modal__field label">
               Summary
               <textarea
                 rows={3}
@@ -519,7 +553,7 @@ const DmNotesBook: React.FC = () => {
             <div className="modal__actions">
               <button
                 type="button"
-                className="btn-primary"
+                className="btn btn--primary"
                 onClick={() => {
                   if (!entityModal.kind || !entityModal.name.trim()) return;
                   const entity = createEntity(
@@ -544,7 +578,7 @@ const DmNotesBook: React.FC = () => {
               </button>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn btn--ghost"
                 onClick={() =>
                   setEntityModal({
                     open: false,

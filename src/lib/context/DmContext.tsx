@@ -21,6 +21,7 @@ import type {
   EncounterCombatant,
   NpcEntity,
   FactionEntity,
+  MapEntity,
   DeleteCascadeResult,
 } from "@/lib/types/dm";
 import type { Note, NoteDoc, NoteScopeType, EntityRef } from "@/lib/types/notes";
@@ -36,6 +37,7 @@ interface DmContextValue {
   currentSession: Session | null;
   npcsForCurrent: NpcEntity[];
   factionsForCurrent: FactionEntity[];
+  mapsForCurrent: MapEntity[];
   entitiesForCurrent: DmEntity[];
   beatsForCurrent: CampaignBeat[];
   encountersForCurrent: EncounterEntity[];
@@ -149,6 +151,20 @@ interface DmContextValue {
     updater: (combatant: EncounterCombatant) => EncounterCombatant
   ) => void;
   removeEncounterCombatant: (encounterId: string, combatantId: string) => void;
+  // Map CRUD
+  createMapForCurrent: (input: {
+    name: string;
+    gridWidth?: number;
+    gridHeight?: number;
+    environmentId?: string | null;
+    locationId?: string | null;
+  }) => MapEntity | null;
+  updateMapForCurrent: (
+    id: string,
+    updater: (map: MapEntity) => MapEntity
+  ) => void;
+  deleteMapForCurrent: (id: string) => void;
+  getMapById: (id: string) => MapEntity | null;
 }
 
 const STORAGE_KEY = "dmState";
@@ -762,6 +778,12 @@ export const DmProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     );
   }, [entitiesForCurrent]);
 
+  const mapsForCurrent: MapEntity[] = useMemo(() => {
+    return entitiesForCurrent.filter(
+      (entity): entity is MapEntity => entity.kind === "map"
+    );
+  }, [entitiesForCurrent]);
+
   const encountersForCurrent: EncounterEntity[] = useMemo(() => {
     return entitiesForCurrent.filter(
       (entity): entity is EncounterEntity => entity.kind === "encounter"
@@ -1137,6 +1159,90 @@ export const DmProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         },
       };
     });
+  };
+
+  // ── Map CRUD ─────────────────────────────────────────────────────────────────
+  const createMapForCurrent = (input: {
+    name: string;
+    gridWidth?: number;
+    gridHeight?: number;
+    environmentId?: string | null;
+    locationId?: string | null;
+  }): MapEntity | null => {
+    if (!currentCampaign) return null;
+    const now = new Date().toISOString();
+    const map: MapEntity = {
+      id: `map-${Date.now()}`,
+      kind: "map",
+      campaignId: currentCampaign.id,
+      name: input.name,
+      gridWidth: input.gridWidth ?? 20,
+      gridHeight: input.gridHeight ?? 20,
+      environmentId: input.environmentId ?? null,
+      locationId: input.locationId ?? null,
+      layerData: null,
+      tileData: null,
+      tags: [],
+      summary: "",
+      createdAt: now,
+      updatedAt: now,
+    };
+    setState((prev) => {
+      const existing = prev.entitiesByCampaignId[currentCampaign.id] ?? [];
+      return {
+        ...prev,
+        entitiesByCampaignId: {
+          ...prev.entitiesByCampaignId,
+          [currentCampaign.id]: [...existing, map],
+        },
+      };
+    });
+    return map;
+  };
+
+  const updateMapForCurrent = (
+    id: string,
+    updater: (map: MapEntity) => MapEntity
+  ) => {
+    if (!currentCampaign) return;
+    setState((prev) => {
+      const list = prev.entitiesByCampaignId[currentCampaign.id] ?? [];
+      const next = list.map((entity) => {
+        if (entity.id !== id || entity.kind !== "map") return entity;
+        const updated = updater(entity as MapEntity);
+        return {
+          ...updated,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      return {
+        ...prev,
+        entitiesByCampaignId: {
+          ...prev.entitiesByCampaignId,
+          [currentCampaign.id]: next,
+        },
+      };
+    });
+  };
+
+  const deleteMapForCurrent = (id: string) => {
+    if (!currentCampaign) return;
+    setState((prev) => {
+      const list = prev.entitiesByCampaignId[currentCampaign.id] ?? [];
+      return {
+        ...prev,
+        entitiesByCampaignId: {
+          ...prev.entitiesByCampaignId,
+          [currentCampaign.id]: list.filter(
+            (entity) => !(entity.kind === "map" && entity.id === id)
+          ),
+        },
+      };
+    });
+  };
+
+  const getMapById = (id: string): MapEntity | null => {
+    return mapsForCurrent.find((m) => m.id === id) ?? null;
   };
 
   const withUpdatedSlots = (
@@ -1671,6 +1777,7 @@ export const DmProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     currentSession,
     npcsForCurrent,
     factionsForCurrent,
+    mapsForCurrent,
     entitiesForCurrent,
     beatsForCurrent,
     encountersForCurrent,
@@ -1707,6 +1814,10 @@ export const DmProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     addSrdMonsterToEncounter,
     updateEncounterCreatureSlot,
     removeEncounterCreatureSlot,
+    createMapForCurrent,
+    updateMapForCurrent,
+    deleteMapForCurrent,
+    getMapById,
     addEncounterCombatant: (
       encounterId,
       combatantInput

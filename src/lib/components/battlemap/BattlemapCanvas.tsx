@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   getResolvedBattlemapIcon,
   getResolvedBattlemapToken,
@@ -17,8 +23,9 @@ import {
   flattenLayerTree,
   isDescendantOf,
   normalizeStackExtremes,
+  createDefaultLayerStack,
 } from "@/lib/battlemap/layers";
-import { isTileUnlit } from "@/lib/battlemap/tileEffects";
+import type { PlacedTile as BattlemapPlacedTile } from "@/lib/battlemap/tileEffects";
 import {
   parseTilePathMetadata,
   getTileMetadata,
@@ -78,21 +85,23 @@ const dirFromDelta = (dx: number, dy: number): 0 | 1 | 2 | 3 => {
   return dy >= 0 ? 1 : 3; // down / up
 };
 
-type TileLayer =
-  | "background"
-  | "floor"
-  | "structure"
-  | "lighting"
-  | "props"
-  | "decoration";
-const legacyLayerKeys = [
-  "background",
-  "floor",
-  "structure",
-  "lighting",
-  "props",
-  "decoration",
-] as const;
+const LEGACY_LAYER_ALIAS_TO_ROLE: Record<string, LayerLeaf["role"]> = {
+  background: "background",
+  lighting: "lighting",
+  floor: "normal",
+  structure: "normal",
+  props: "normal",
+  decoration: "normal",
+};
+
+const cloneTiles = <T,>(tiles: T[]): T[] => {
+  try {
+    return structuredClone(tiles);
+  } catch {
+    return JSON.parse(JSON.stringify(tiles)) as T[];
+  }
+};
+
 const GRID_CENTER_CELL = GRID_EXTENT_CELLS / 2; // cell index whose center is at world (0,0)
 
 type BattlemapCanvasProps = {
@@ -126,7 +135,7 @@ type BattlemapCanvasProps = {
     cornerSuffixes?: string[];
     excludeBorderTilesInFill?: boolean;
     edgeRandomMirrorX?: boolean;
-    clearOverlapsLayers?: TileLayer[];
+    clearOverlapsLayers?: string[];
     tilesetId?: string;
     layer?: string;
     edgePoolFilter?: "bOnly" | "nonCorner" | "all";
@@ -151,8 +160,6 @@ type BattlemapCanvasProps = {
   onToggleFogLayer?: () => void;
   onDropToken?: () => void;
   snapDebug?: boolean;
-  selectedLayerKey?: TileLayer | null;
-  legacyLayerIds?: Partial<Record<TileLayer, string>>;
   layers?: LayerStack;
   soloLayerId?: LayerId | null;
   onLoadLayers?: (stack: LayerStack) => void;
@@ -186,8 +193,6 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
   onToggleTokensLayer,
   onToggleFogLayer,
   snapDebug = false,
-  selectedLayerKey = null,
-  legacyLayerIds,
   layers,
   soloLayerId = null,
   onLoadLayers,
@@ -203,9 +208,7 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
   const panIcon = getResolvedBattlemapIcon("pan");
   const roomIcon = getResolvedBattlemapIcon("draw.rectangle");
   const areaIcon = getResolvedBattlemapIcon("draw.polygon");
-  const gradientIcon = getResolvedBattlemapIcon("draw.gradient");
   const measureIcon = getResolvedBattlemapIcon("measure");
-  const gridToggleIcon = getResolvedBattlemapIcon("grid.toggle");
   const fogIcon = getResolvedBattlemapIcon("fog.toggle");
   const eraseIcon = getResolvedBattlemapIcon("erase");
   const borderIcon = getResolvedBattlemapIcon("draw.border");
@@ -216,7 +219,6 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [camera, setCamera] = useState<Camera>({ panX: 0, panY: 0, zoom: 1 });
-  const [cameraReady, setCameraReady] = useState(false);
   const cameraInitializedRef = useRef(false);
   const [canvasSized, setCanvasSized] = useState(false);
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
@@ -226,35 +228,7 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
   const [activeTilesetId, setActiveTilesetId] = useState<string | null>(
     "fallback"
   );
-  const [placedTiles, setPlacedTiles] = useState<
-    Array<{
-      id: string;
-      cellX: number;
-      cellY: number;
-      centerX?: number;
-      centerY?: number;
-      src: string;
-      rotationIndex: number;
-      rotationRadians?: number;
-      mirrorX?: boolean;
-      scale?: number;
-      strokeId?: string;
-      layer: TileLayer;
-      order: number;
-      mirrorY?: boolean;
-      layerId?: string | null;
-    }>
-  >([]);
-  useEffect(() => {
-    if (!legacyLayerIds) return;
-    setPlacedTiles((prev) =>
-      prev.map((t) =>
-        typeof t.layerId !== "undefined"
-          ? t
-          : { ...t, layerId: legacyLayerIds[t.layer] ?? null }
-      )
-    );
-  }, [legacyLayerIds]);
+  const [placedTiles, setPlacedTiles] = useState<BattlemapPlacedTile[]>([]);
   const panState = useRef<{
     startX: number;
     startY: number;
@@ -337,7 +311,8 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     src: string;
     cellX: number;
     cellY: number;
-    layer: TileLayer;
+    layerId?: string | null;
+    layerRole?: LayerLeaf["role"] | null;
   } | null>(null);
   const selectedPlacedTile = useMemo(() => {
     const first = Array.from(selectedPlacedTileIds)[0];
@@ -356,18 +331,15 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     w: number;
     h: number;
   } | null>(null);
+  const [fogVisibleCells, setFogVisibleCells] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [fogMode, setFogMode] = useState<"set" | "add" | "subtract">("set");
+  const [mapSize, setMapSize] = useState<MapSize>({ w: 10, h: 10 });
   const historyRef = useRef<
     { placedTiles: typeof placedTiles; camera: Camera }[]
   >([]);
   const historyIndexRef = useRef<number>(-1);
-
-  const cloneTiles = (tiles: typeof placedTiles) => {
-    try {
-      return structuredClone(tiles);
-    } catch {
-      return JSON.parse(JSON.stringify(tiles)) as typeof placedTiles;
-    }
-  };
 
   const placeLine = (
     start: { cellX: number; cellY: number },
@@ -432,19 +404,22 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     });
   };
 
-  const pushHistory = (nextTiles?: typeof placedTiles, nextCamera?: Camera) => {
-    const snapshot = {
-      placedTiles: cloneTiles(nextTiles ?? placedTiles),
-      camera: { ...(nextCamera ?? camera) },
-    };
-    historyRef.current = [
-      ...historyRef.current.slice(0, historyIndexRef.current + 1),
-      snapshot,
-    ];
-    historyIndexRef.current = historyRef.current.length - 1;
-  };
+  const pushHistory = useCallback(
+    (nextTiles?: typeof placedTiles, nextCamera?: Camera) => {
+      const snapshot = {
+        placedTiles: cloneTiles(nextTiles ?? placedTiles),
+        camera: { ...(nextCamera ?? camera) },
+      };
+      historyRef.current = [
+        ...historyRef.current.slice(0, historyIndexRef.current + 1),
+        snapshot,
+      ];
+      historyIndexRef.current = historyRef.current.length - 1;
+    },
+    [placedTiles, camera]
+  );
 
-  const saveMapState = () => {
+  const saveMapState = useCallback(() => {
     if (!selectedMapId) return;
     console.log(
       `[SAVE] ${new Date().toISOString()} Saving map ${selectedMapId} with ${
@@ -473,7 +448,15 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     } catch (err) {
       console.warn("Failed to save map", err);
     }
-  };
+  }, [
+    selectedMapId,
+    placedTiles,
+    layers,
+    fogVisibleCells,
+    fogMode,
+    mapSize,
+    pushHistory,
+  ]);
 
   const saveMapStateRef = useRef(saveMapState);
   useEffect(() => {
@@ -513,7 +496,7 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       }
     };
     // include only serializable dependencies to prevent excessive triggers
-  }, [selectedMapId, placedTiles]);
+  }, [selectedMapId, placedTiles, saveMapState]);
 
   // Save map ID for persistence across reloads
   useEffect(() => {
@@ -544,83 +527,7 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     };
   }, []);
 
-  const loadMapState = (mapId: string) => {
-    try {
-      const raw = localStorage.getItem(`battlemap:${mapId}`);
-      console.log(
-        `[LOAD] ${new Date().toISOString()} Loading map ${mapId}: raw data =`,
-        raw ? `${raw.length} bytes` : "NOT FOUND"
-      );
-      if (!raw) {
-        console.log(
-          `[LOAD] ${new Date().toISOString()} Map ${mapId}: no save found, clearing state`
-        );
-        setPlacedTiles([]);
-        historyRef.current = [{ placedTiles: [], camera }];
-        historyIndexRef.current = 0;
-        cameraInitializedRef.current = false;
-        setCameraReady(false);
-        setCamera({ panX: 0, panY: 0, zoom: 1 });
-        return;
-      }
-      const parsed = JSON.parse(raw) as {
-        placedTiles?: typeof placedTiles;
-        camera?: Camera;
-        layers?: LayerStack;
-        fogRect?: {
-          minX: number;
-          maxX: number;
-          minY: number;
-          maxY: number;
-        } | null;
-        fogCells?: Array<{ x: number; y: number }>;
-        fogMode?: "set" | "add" | "subtract";
-        mapSize?: MapSize;
-      };
-      setPlacedTiles(parsed.placedTiles ?? []);
-      if (parsed.fogCells && parsed.fogCells.length > 0) {
-        setFogVisibleCells(
-          new Set(parsed.fogCells.map((c) => `${c.x},${c.y}`))
-        );
-      } else if (parsed.fogRect) {
-        const rect = parsed.fogRect;
-        const cells = new Set<string>();
-        for (let x = rect.minX; x <= rect.maxX; x++) {
-          for (let y = rect.minY; y <= rect.maxY; y++) {
-            cells.add(`${x},${y}`);
-          }
-        }
-        setFogVisibleCells(cells);
-      } else {
-        setFogVisibleCells(new Set());
-      }
-      setFogMode(parsed.fogMode ?? "set");
-      if (parsed.mapSize && parsed.mapSize.w > 0 && parsed.mapSize.h > 0) {
-        setMapSize(parsed.mapSize);
-      } else {
-        setMapSize({ w: 10, h: 10 });
-      }
-      if (parsed.layers && parsed.layers.rootIds && parsed.layers.nodes) {
-        // Normalize extremes so saved maps can’t violate constraints
-        onLoadLayers?.(normalizeStackExtremes(parsed.layers));
-      }
-      cameraInitializedRef.current = false;
-      setCameraReady(false);
-      centerCameraOnOrigin(1);
-      historyRef.current = [
-        {
-          placedTiles: cloneTiles(parsed.placedTiles ?? []),
-          camera: { panX: camera.panX, panY: camera.panY, zoom: 1 },
-        },
-      ];
-      historyIndexRef.current = 0;
-    } catch (err) {
-      console.warn("Failed to load map", err);
-    }
-  };
-
   const imageCache = useMemo(() => new Map<string, HTMLImageElement>(), []);
-  const tintedCache = useMemo(() => new Map<string, HTMLCanvasElement>(), []);
   const pixelCache = useMemo(() => new Map<string, HTMLCanvasElement>(), []);
   const missingImageFallback = useMemo(() => {
     // Avoid touching DOM APIs during SSR.
@@ -641,12 +548,8 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
   const shadingTiledCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const solidShadowCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const falloffShadowCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const layerMaskCacheRef = useRef<
-    Map<string, { gen: number; width: number; height: number }>
-  >(new Map());
   const tintCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const shadeCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const darknessCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [bgReady, setBgReady] = useState(false);
   const renderGeneration = useRef(0);
   const renderQueuedRef = useRef(false);
@@ -665,7 +568,6 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     | "border"
     | "area"
     | "polygon"
-    | "gradient"
     | "fog"
     | "tile"
     | "erase"
@@ -679,11 +581,6 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     floating: null,
     active: false,
   });
-  const [fogVisibleCells, setFogVisibleCells] = useState<Set<string>>(
-    () => new Set()
-  );
-  const [fogMode, setFogMode] = useState<"set" | "add" | "subtract">("set");
-  const [mapSize, setMapSize] = useState<MapSize>({ w: 10, h: 10 });
   const [mapSettingsOpen, setMapSettingsOpen] = useState(false);
   const [hoveredTopbarControl, setHoveredTopbarControl] = useState<{
     label: string;
@@ -719,9 +616,6 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       placedTiles
         .filter((t) => {
           if (t.layerId && layerIdSet.has(t.layerId)) return true;
-          // Fallback for legacy tiles without explicit layerId: match on legacy layer key if it happens to equal a layer id.
-          if (!t.layerId && layerIdSet.has(t.layer as unknown as string))
-            return true;
           return false;
         })
         .map((t) => t.id)
@@ -847,8 +741,13 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     });
   };
 
-  const isTileVisible = (tile: (typeof placedTiles)[number]) =>
-    legacyVisibility[tile.layer] ?? true;
+  const isTileVisible = (tile: (typeof placedTiles)[number]) => {
+    if (tile.layerId) {
+      const visible = layerVisibilityById[tile.layerId];
+      return typeof visible === "boolean" ? visible : true;
+    }
+    return true;
+  };
 
   const updateSnapProbe = ({
     worldX,
@@ -1195,81 +1094,6 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     return h >>> 0;
   };
 
-  const getTileLayer = (
-    src?: string,
-    activeBrush?: { layer?: string; tilesetId?: string },
-    tilesetId?: string | null
-  ): TileLayer => {
-    const explicit = (activeBrush?.layer ?? "").toLowerCase() as TileLayer;
-    if (
-      explicit &&
-      [
-        "background",
-        "floor",
-        "structure",
-        "lighting",
-        "props",
-        "decoration",
-      ].includes(explicit)
-    ) {
-      return explicit;
-    }
-    const brushTileset = activeBrush?.tilesetId?.toLowerCase() ?? "";
-    const tileset = tilesetId?.toLowerCase() ?? "";
-    const srcLower = src?.toLowerCase() ?? "";
-    const name = srcLower.split("/").pop() ?? "";
-
-    const isLighting =
-      [brushTileset, tileset, srcLower, name].some(
-        (v) => v.includes("lighting") || v.includes("light")
-      ) &&
-      ![brushTileset, tileset, srcLower, name].some(
-        (v) => v.includes("shading") || v.includes("shade")
-      );
-    if (isLighting) return "lighting";
-
-    const isFloor = [brushTileset, tileset, srcLower, name].some(
-      (v) => v.includes("floor") || v.includes("/floor/")
-    );
-    if (isFloor) return "floor";
-
-    const isDoor = [brushTileset, tileset, srcLower, name].some((v) =>
-      v.includes("door")
-    );
-    const isPillar = [brushTileset, tileset, srcLower, name].some((v) =>
-      v.includes("pillar")
-    );
-    const isWall = [brushTileset, tileset, srcLower, name].some(
-      (v) => v.includes("walls") || v.includes("/walls/") || v.includes("wall_")
-    );
-    if (isDoor || isWall || isPillar) return "structure";
-
-    const isStairs = [brushTileset, tileset, srcLower, name].some((v) =>
-      v.includes("stair")
-    );
-    const isRocks = [brushTileset, tileset, srcLower, name].some((v) =>
-      v.includes("rock")
-    );
-    const isRailing = [brushTileset, tileset, srcLower, name].some((v) =>
-      v.includes("railing")
-    );
-    const isDecoration = [brushTileset, tileset, srcLower, name].some((v) =>
-      v.includes("decor")
-    );
-
-    if (isStairs || isRocks || isRailing || isDecoration) return "decoration";
-
-    if ([brushTileset, tileset, srcLower, name].some((v) => v.includes("prop")))
-      return "props";
-    if (
-      [brushTileset, tileset, srcLower, name].some((v) =>
-        v.includes("background")
-      )
-    )
-      return "background";
-    return "floor";
-  };
-
   // Tile size / hitbox is derived solely from the `_WxH` suffix
   // in the filename; native pixel dimensions never influence span.
   const getTileSizeCells = (src: string) => {
@@ -1343,20 +1167,34 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     };
   };
 
-  const isLayerLocked = (layerId?: string | null, legacyKey?: TileLayer) => {
-    if (!layers) return false;
-    const id =
-      layerId ?? (legacyKey ? legacyLayerIds?.[legacyKey] ?? null : null);
-    if (!id) return false;
-    const node = layers.nodes[id];
-    if (node && node.type === "layer") {
-      return !!node.locked;
-    }
-    return false;
-  };
+  const isLayerLocked = useCallback(
+    (layerId?: string | null) => {
+      if (!layers) return false;
+      if (!layerId) return false;
+      const node = layers.nodes[layerId];
+      if (node && node.type === "layer") {
+        return !!node.locked;
+      }
+      return false;
+    },
+    [layers]
+  );
 
-  const isTileLocked = (tile: { layerId?: string | null; layer: TileLayer }) =>
-    isLayerLocked(tile.layerId, tile.layer);
+  const isTileLocked = useCallback(
+    (tile: { layerId?: string | null }) => isLayerLocked(tile.layerId),
+    [isLayerLocked]
+  );
+
+  type ClearLayerTarget = string;
+
+  const matchesClearLayerTarget = (
+    tile: { layerId?: string | null },
+    targets: ClearLayerTarget[]
+  ) =>
+    targets.some((target) => {
+      if (!tile.layerId) return false;
+      return tile.layerId === target;
+    });
 
   const removeOverlappingTiles = (
     tiles: typeof placedTiles,
@@ -1367,17 +1205,20 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       cellY: number;
       centerX?: number;
       centerY?: number;
-      layer: TileLayer;
+      layerId?: string | null;
     }>,
-    layers: TileLayer[]
+    layers: ClearLayerTarget[]
   ) => {
+    if (layers.length === 0) return tiles;
+    const normalizedTargets = layers.filter(Boolean);
+    if (normalizedTargets.length === 0) return tiles;
     let result = tiles;
     for (const tile of incoming) {
-      if (!layers.includes(tile.layer)) continue;
+      if (!matchesClearLayerTarget(tile, normalizedTargets)) continue;
       const incomingBounds = getTileBounds(tile);
       result = result.filter((existing) => {
         if (isTileLocked(existing)) return true;
-        if (!layers.includes(existing.layer)) return true;
+        if (!matchesClearLayerTarget(existing, normalizedTargets)) return true;
         const existingBounds = getTileBounds(existing);
         return !boundsOverlap(existingBounds, incomingBounds);
       });
@@ -1385,67 +1226,447 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     return result;
   };
 
-  const resolveLayerId = (layer: TileLayer | undefined | null) => {
-    if (!layer) return null;
-    return legacyLayerIds?.[layer] ?? null;
+  const orderedLayers = useMemo<LayerLeaf[] | null>(() => {
+    if (!layers) return null;
+    return flattenLayerTree(layers, true, true)
+      .map((entry) => entry.node)
+      .filter((node): node is LayerLeaf => node.type === "layer");
+  }, [layers]);
+
+  const getOrderedLeavesForStack = useCallback(
+    (stack?: LayerStack | null) => {
+      if (!stack) return null;
+      if (orderedLayers && stack === layers) {
+        return orderedLayers;
+      }
+      return flattenLayerTree(stack, true, true)
+        .map((entry) => entry.node)
+        .filter((node): node is LayerLeaf => node.type === "layer");
+    },
+    [layers, orderedLayers]
+  );
+
+  const isLeafVisible = useCallback(
+    (leaf: LayerLeaf) => {
+      if (!leaf.visible) return false;
+      if (!soloLayerId || !layers) return true;
+      if (leaf.id === soloLayerId) return true;
+      const soloNode = layers.nodes[soloLayerId];
+      if (soloNode?.type === "group") {
+        return isDescendantOf(layers, leaf.id, soloNode.id);
+      }
+      return false;
+    },
+    [layers, soloLayerId]
+  );
+
+  const isPaintableLayer = (leaf: LayerLeaf) => {
+    return !["grid", "tokens", "fog"].includes(leaf.role);
   };
 
-  const resolveLegacyKeyForLayerId = (
-    layerId: string | null | undefined
-  ): TileLayer | null => {
-    if (!layerId || !legacyLayerIds) return null;
-    const entries = Object.entries(legacyLayerIds) as [TileLayer, string][];
-    const match = entries.find(([, id]) => id === layerId);
-    return match ? match[0] : null;
+  const ensureStackHasPaintableLayer = useCallback(
+    (stack: LayerStack): LayerStack => {
+      const hasPaintable = Object.values(stack.nodes).some(
+        (node) => node.type === "layer" && isPaintableLayer(node)
+      );
+      if (hasPaintable) return stack;
+
+      const defaultLayer =
+        (createDefaultLayerStack().nodes["layer-1"] as LayerLeaf) ?? null;
+      if (!defaultLayer) return stack;
+
+      const allocateId = () => {
+        if (!stack.nodes[defaultLayer.id]) return defaultLayer.id;
+        let suffix = 1;
+        while (stack.nodes[`${defaultLayer.id}-${suffix}`]) {
+          suffix += 1;
+        }
+        return `${defaultLayer.id}-${suffix}`;
+      };
+
+      const fallbackId = allocateId();
+      const fallbackLayer: LayerLeaf = {
+        ...defaultLayer,
+        id: fallbackId,
+        parentId: null,
+        locked: false,
+        visible: true,
+      };
+      const nextNodes = { ...stack.nodes, [fallbackId]: fallbackLayer };
+      const nextRootIds = stack.rootIds.includes(fallbackId)
+        ? [...stack.rootIds]
+        : (() => {
+            const copy = [...stack.rootIds];
+            const bgIndex = copy.indexOf("background");
+            if (bgIndex >= 0) {
+              copy.splice(bgIndex + 1, 0, fallbackId);
+            } else {
+              copy.unshift(fallbackId);
+            }
+            return copy;
+          })();
+      return { ...stack, nodes: nextNodes, rootIds: nextRootIds };
+    },
+    [isPaintableLayer]
+  );
+
+  const layerVisibilityById = useMemo<Record<string, boolean>>(() => {
+    if (!orderedLayers) return {};
+    return orderedLayers.reduce<Record<string, boolean>>((acc, leaf) => {
+      acc[leaf.id] = isLeafVisible(leaf);
+      return acc;
+    }, {});
+  }, [orderedLayers, isLeafVisible]);
+
+  const findLayerByAlias = useCallback(
+    (
+      alias?: string | null,
+      options?: {
+        stack?: LayerStack | null;
+        orderedLeaves?: LayerLeaf[] | null;
+      }
+    ): LayerLeaf | null => {
+      if (!alias) return null;
+      const trimmed = alias.trim();
+      if (!trimmed) return null;
+      const targetStack = options?.stack ?? layers ?? null;
+      if (!targetStack) return null;
+      const direct = targetStack.nodes[trimmed];
+      if (direct && direct.type === "layer" && isPaintableLayer(direct)) {
+        return direct;
+      }
+      const normalized = trimmed.toLowerCase();
+      const ordered =
+        options?.orderedLeaves ?? getOrderedLeavesForStack(targetStack);
+      const byName = ordered?.find(
+        (leaf) =>
+          leaf.name.toLowerCase() === normalized && isPaintableLayer(leaf)
+      );
+      if (byName) return byName;
+      const mappedRole =
+        LEGACY_LAYER_ALIAS_TO_ROLE[
+          normalized as keyof typeof LEGACY_LAYER_ALIAS_TO_ROLE
+        ];
+      if (mappedRole) {
+        const byRole = ordered?.find(
+          (leaf) => leaf.role === mappedRole && isPaintableLayer(leaf)
+        );
+        if (byRole) return byRole;
+      }
+      return null;
+    },
+    [layers, getOrderedLeavesForStack]
+  );
+
+  const normalizeClearLayerTargets = (targets: string[]): string[] => {
+    if (!targets || targets.length === 0) return [];
+    const normalized = new Set<string>();
+    targets.forEach((target) => {
+      if (!target) return;
+      const trimmed = target.trim();
+      if (!trimmed) return;
+      const direct = layers?.nodes[trimmed];
+      if (direct && direct.type === "layer") {
+        normalized.add(direct.id);
+        return;
+      }
+      const aliasLeaf = findLayerByAlias(trimmed);
+      if (aliasLeaf) {
+        normalized.add(aliasLeaf.id);
+      }
+    });
+    return Array.from(normalized);
   };
 
-  // Resolve which logical layer and concrete stack layer id to use when placing tiles.
-  // Prefers the currently selected stack leaf when it is a real layer; otherwise picks
-  // the first visible art layer from the stack, falling back to legacy mappings.
+  const getFallbackPlacementLayer = useCallback(
+    (
+      stackOverride?: LayerStack | null,
+      orderedOverride?: LayerLeaf[] | null
+    ): LayerLeaf | null => {
+      const targetStack = stackOverride ?? layers ?? null;
+      const ordered = orderedOverride ?? getOrderedLeavesForStack(targetStack);
+      if (!ordered) return null;
+      return ordered.find((leaf) => isPaintableLayer(leaf)) ?? null;
+    },
+    [layers, getOrderedLeavesForStack]
+  );
+
+  const rehydrateTilesWithLayerInfo = useCallback(
+    (
+      tiles: Array<BattlemapPlacedTile & { layer?: string | null }>,
+      stackOverride?: LayerStack | null
+    ): BattlemapPlacedTile[] => {
+      if (!tiles || tiles.length === 0) return tiles;
+      const preferredStack = stackOverride ?? layers ?? null;
+      const fallbackStack =
+        stackOverride && layers && stackOverride !== layers ? layers : null;
+      const preferredOrdered = getOrderedLeavesForStack(preferredStack);
+      const fallbackOrdered = fallbackStack
+        ? getOrderedLeavesForStack(fallbackStack)
+        : null;
+
+      let changed = false;
+      const upgraded = tiles.map((tile) => {
+        const legacyLayer =
+          typeof (tile as { layer?: string | null }).layer === "string"
+            ? ((tile as { layer?: string | null }).layer as string)
+            : null;
+        let nextLayerId = tile.layerId ?? null;
+        let nextLayerRole = tile.layerRole ?? null;
+
+        const syncRoleFromStack = (stack: LayerStack | null) => {
+          if (!stack || !nextLayerId) return;
+          const node = stack.nodes[nextLayerId];
+          if (!node || node.type !== "layer") {
+            nextLayerId = null;
+            return;
+          }
+          nextLayerRole = node.role;
+        };
+
+        syncRoleFromStack(preferredStack);
+        if (!nextLayerId) {
+          syncRoleFromStack(fallbackStack ?? null);
+        }
+
+        let resolved: LayerLeaf | null = null;
+        if (!nextLayerId && legacyLayer) {
+          resolved =
+            findLayerByAlias(legacyLayer, {
+              stack: preferredStack ?? undefined,
+              orderedLeaves: preferredOrdered ?? undefined,
+            }) ??
+            (fallbackStack
+              ? findLayerByAlias(legacyLayer, {
+                  stack: fallbackStack,
+                  orderedLeaves: fallbackOrdered ?? undefined,
+                })
+              : null);
+        }
+
+        if (!nextLayerId && resolved) {
+          nextLayerId = resolved.id;
+          nextLayerRole = resolved.role;
+        }
+
+        if (!nextLayerId && nextLayerRole) {
+          const byRole =
+            preferredOrdered?.find((leaf) => leaf.role === nextLayerRole) ??
+            fallbackOrdered?.find((leaf) => leaf.role === nextLayerRole) ??
+            null;
+          if (byRole) {
+            nextLayerId = byRole.id;
+            nextLayerRole = byRole.role;
+          }
+        }
+
+        if (!nextLayerId && legacyLayer) {
+          const mappedRole =
+            LEGACY_LAYER_ALIAS_TO_ROLE[
+              legacyLayer
+                .trim()
+                .toLowerCase() as keyof typeof LEGACY_LAYER_ALIAS_TO_ROLE
+            ];
+          if (mappedRole) {
+            const roleMatch =
+              preferredOrdered?.find((leaf) => leaf.role === mappedRole) ??
+              fallbackOrdered?.find((leaf) => leaf.role === mappedRole) ??
+              null;
+            if (roleMatch) {
+              nextLayerId = roleMatch.id;
+              nextLayerRole = roleMatch.role;
+            } else {
+              nextLayerRole = mappedRole;
+            }
+          }
+        }
+
+        if (!nextLayerId) {
+          const fallbackLeaf =
+            getFallbackPlacementLayer(
+              preferredStack ?? fallbackStack ?? null,
+              preferredOrdered ?? fallbackOrdered ?? null
+            ) ?? null;
+          if (fallbackLeaf) {
+            nextLayerId = fallbackLeaf.id;
+            nextLayerRole = fallbackLeaf.role;
+          }
+        }
+
+        if (
+          nextLayerId !== tile.layerId ||
+          nextLayerRole !== tile.layerRole ||
+          legacyLayer
+        ) {
+          changed = true;
+          const { layer, ...rest } = tile as BattlemapPlacedTile & {
+            layer?: string | null;
+          };
+          void layer;
+          return {
+            ...rest,
+            layerId: nextLayerId,
+            layerRole: nextLayerRole,
+          };
+        }
+        return tile;
+      });
+
+      return changed ? upgraded : tiles;
+    },
+    [
+      layers,
+      findLayerByAlias,
+      getOrderedLeavesForStack,
+      getFallbackPlacementLayer,
+    ]
+  );
+
+  useEffect(() => {
+    if (!layers) return;
+    setPlacedTiles((prev) => rehydrateTilesWithLayerInfo(prev));
+  }, [layers, rehydrateTilesWithLayerInfo]);
+
+  const loadMapState = (mapId: string) => {
+    try {
+      const raw = localStorage.getItem(`battlemap:${mapId}`);
+      console.log(
+        `[LOAD] ${new Date().toISOString()} Loading map ${mapId}: raw data =`,
+        raw ? `${raw.length} bytes` : "NOT FOUND"
+      );
+      if (!raw) {
+        console.log(
+          `[LOAD] ${new Date().toISOString()} Map ${mapId}: no save found, clearing state`
+        );
+        const defaultCamera = { panX: 0, panY: 0, zoom: 1 };
+        const defaultStack = createDefaultLayerStack();
+        setPlacedTiles([]);
+        setSelectedPlacedTileIds(new Set());
+        setFogVisibleCells(new Set());
+        setFogMode("set");
+        setMapSize({ w: 10, h: 10 });
+        setDragPreviewTile(null);
+        setSelectionBox({ active: false });
+        setMeasure({ points: [], floating: null, active: false });
+        historyRef.current = [{ placedTiles: [], camera: defaultCamera }];
+        historyIndexRef.current = 0;
+        cameraInitializedRef.current = false;
+        setCamera(defaultCamera);
+        onLoadLayers?.(defaultStack);
+        centerCameraOnOrigin(1);
+        tileStroke.current = { active: false, visited: new Set() };
+        return;
+      }
+      const parsed = JSON.parse(raw) as {
+        placedTiles?: typeof placedTiles;
+        camera?: Camera;
+        layers?: LayerStack;
+        fogRect?: {
+          minX: number;
+          maxX: number;
+          minY: number;
+          maxY: number;
+        } | null;
+        fogCells?: Array<{ x: number; y: number }>;
+        fogMode?: "set" | "add" | "subtract";
+        mapSize?: MapSize;
+      };
+
+      const normalizedStack =
+        parsed.layers && parsed.layers.rootIds && parsed.layers.nodes
+          ? normalizeStackExtremes(parsed.layers)
+          : null;
+      const stackWithFallback = normalizedStack
+        ? ensureStackHasPaintableLayer(normalizedStack)
+        : null;
+      if (stackWithFallback) {
+        onLoadLayers?.(stackWithFallback);
+      }
+
+      const normalizedTiles = rehydrateTilesWithLayerInfo(
+        parsed.placedTiles ?? [],
+        stackWithFallback
+      );
+      setPlacedTiles(normalizedTiles);
+
+      if (parsed.fogCells && parsed.fogCells.length > 0) {
+        setFogVisibleCells(
+          new Set(parsed.fogCells.map((c) => `${c.x},${c.y}`))
+        );
+      } else if (parsed.fogRect) {
+        const rect = parsed.fogRect;
+        const cells = new Set<string>();
+        for (let x = rect.minX; x <= rect.maxX; x++) {
+          for (let y = rect.minY; y <= rect.maxY; y++) {
+            cells.add(`${x},${y}`);
+          }
+        }
+        setFogVisibleCells(cells);
+      } else {
+        setFogVisibleCells(new Set());
+      }
+
+      setFogMode(parsed.fogMode ?? "set");
+      if (parsed.mapSize && parsed.mapSize.w > 0 && parsed.mapSize.h > 0) {
+        setMapSize(parsed.mapSize);
+      } else {
+        setMapSize({ w: 10, h: 10 });
+      }
+
+      cameraInitializedRef.current = false;
+      centerCameraOnOrigin(1);
+      historyRef.current = [
+        {
+          placedTiles: cloneTiles(normalizedTiles),
+          camera: { panX: camera.panX, panY: camera.panY, zoom: 1 },
+        },
+      ];
+      historyIndexRef.current = 0;
+    } catch (err) {
+      console.warn("Failed to load map", err);
+    }
+  };
+
+  const handleResetMap = () => {
+    if (!selectedMapId) return;
+    console.log(
+      `[RESET] ${new Date().toISOString()} Clearing saved state for map ${selectedMapId}`
+    );
+    try {
+      localStorage.removeItem(`battlemap:${selectedMapId}`);
+    } catch (err) {
+      console.warn("Failed to clear saved map", err);
+    }
+    loadMapState(selectedMapId);
+  };
+
   const resolvePlacementLayerForSrc = (
     src?: string,
     options?: { ignoreBrush?: boolean }
-  ) => {
-    // Only the currently selected layer controls placement; do not auto-assign based on filename.
-    const selectedNode = selectedLayerId
-      ? layers?.nodes[selectedLayerId]
+  ): LayerLeaf | null => {
+    const selectedLeaf = selectedLayerId
+      ? (layers?.nodes[selectedLayerId] as LayerLeaf | undefined)
       : undefined;
-
-    if (
-      selectedNode &&
-      selectedNode.type === "layer" &&
-      selectedNode.role !== "grid" &&
-      selectedNode.role !== "tokens" &&
-      selectedNode.role !== "fog"
-    ) {
-      // Prefer a legacy key that maps to this concrete layer id, if any.
-      const legacyKey = resolveLegacyKeyForLayerId(selectedNode.id) ?? null;
-      const layer: TileLayer =
-        legacyKey && (legacyLayerKeys as readonly string[]).includes(legacyKey)
-          ? legacyKey
-          : selectedLayerKey &&
-            (legacyLayerKeys as readonly string[]).includes(selectedLayerKey)
-          ? selectedLayerKey
-          : "floor";
-      return { layer, targetLayerId: selectedNode.id };
+    if (selectedLeaf && isPaintableLayer(selectedLeaf)) {
+      return selectedLeaf;
     }
 
-    // If the asset is a light, force placement on the lighting layer when available.
-    const srcLower = src?.toLowerCase() ?? "";
-    const name = srcLower.split("/").pop() ?? "";
+    if (!options?.ignoreBrush) {
+      const brushLeaf = findLayerByAlias(activeBrush?.layer);
+      if (brushLeaf) return brushLeaf;
+    }
 
-    // Check filename for lighting indicators
-    const isLightingByName =
-      [srcLower, name].some(
-        (v) => v.includes("lighting") || v.includes("light")
-      ) &&
-      ![srcLower, name].some(
-        (v) => v.includes("shading") || v.includes("shade")
-      );
-
-    // Check tile metadata for light_source effect
-    let isLightingByMetadata = false;
     if (src) {
+      const srcLower = src.toLowerCase();
+      const name = srcLower.split("/").pop() ?? "";
+      const isLightingByName =
+        [srcLower, name].some(
+          (value) => value.includes("lighting") || value.includes("light")
+        ) &&
+        ![srcLower, name].some(
+          (value) => value.includes("shading") || value.includes("shade")
+        );
+      let isLightingByMetadata = false;
       const pathMeta = parseTilePathMetadata(src);
       if (pathMeta) {
         const metadata = getTileMetadata(
@@ -1454,41 +1675,15 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
         );
         isLightingByMetadata = hasTileEffect(metadata, "light_source");
       }
-    }
-
-    const isLighting = isLightingByName || isLightingByMetadata;
-
-    if (isLighting && layers) {
-      const list = flattenLayerTree(layers, true, true)
-        .map((e) => e.node)
-        .filter((n): n is LayerLeaf => n.type === "layer");
-      const lightingLeaf = list.find((leaf) => leaf.role === "lighting");
-      if (lightingLeaf) {
-        return { layer: "lighting" as const, targetLayerId: lightingLeaf.id };
+      if (isLightingByName || isLightingByMetadata) {
+        const lightingLeaf = orderedLayers?.find(
+          (leaf) => leaf.role === "lighting"
+        );
+        if (lightingLeaf) return lightingLeaf;
       }
     }
-    // No valid placement layer (e.g., no selection or a non-art layer is selected).
-    return null;
-  };
 
-  // Decide which layer to use for a given tile, optionally ignoring brush metadata when we're placing a single tile.
-  const orderedLayers = useMemo<LayerLeaf[] | null>(() => {
-    if (!layers) return null;
-    // Preserve natural `rootIds` order: Background → … → Lighting
-    return flattenLayerTree(layers, true, true)
-      .map((e) => e.node)
-      .filter((n): n is LayerLeaf => n.type === "layer");
-  }, [layers]);
-
-  const isLeafVisible = (leaf: LayerLeaf) => {
-    if (!leaf.visible) return false;
-    if (!soloLayerId || !layers) return true;
-    if (leaf.id === soloLayerId) return true;
-    const soloNode = layers.nodes[soloLayerId];
-    if (soloNode?.type === "group") {
-      return isDescendantOf(layers, leaf.id, soloNode.id);
-    }
-    return false;
+    return getFallbackPlacementLayer();
   };
 
   const visibleForRole = (role: LayerLeaf["role"]) => {
@@ -1498,59 +1693,16 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     );
   };
 
-  const legacyVisibility = useMemo<Record<TileLayer, boolean>>(() => {
-    if (!orderedLayers) {
-      return {
-        background: true,
-        floor: true,
-        structure: true,
-        lighting: true,
-        props: true,
-        decoration: true,
-      };
-    }
-    const map: Partial<Record<TileLayer, boolean>> = {};
-    orderedLayers.forEach((leaf) => {
-      const asKey = leaf.id as TileLayer;
-      if ((legacyLayerKeys as readonly string[]).includes(asKey)) {
-        map[asKey] = isLeafVisible(leaf);
-      }
-      if (leaf.role === "background") {
-        map.background = isLeafVisible(leaf);
-      }
-    });
-    return {
-      background: map.background ?? true,
-      floor: map.floor ?? true,
-      structure: map.structure ?? true,
-      lighting: map.lighting ?? true,
-      props: map.props ?? true,
-      decoration: map.decoration ?? true,
-    };
-  }, [orderedLayers, soloLayerId, layers]);
-
   const gridVisibleEffective = orderedLayers ? !!visibleForRole("grid") : true;
   const tokensVisibleEffective = orderedLayers
     ? !!visibleForRole("tokens")
     : true;
   const fogVisibleEffective = orderedLayers ? !!visibleForRole("fog") : true;
-  const backgroundVisibleEffective = legacyVisibility.background;
-
-  const resolveTileLayer = (src?: string, opts?: { ignoreBrush?: boolean }) => {
-    // Legacy entry point: when no modern layer stack is used, fall back to the explicitly selected legacy key.
-    if (
-      selectedLayerKey &&
-      (legacyLayerKeys as readonly string[]).includes(selectedLayerKey)
-    ) {
-      return selectedLayerKey;
-    }
-    // Otherwise, avoid any filename-based heuristics; layer will be derived from the currently selected stack layer.
-    return getTileLayer(
-      src,
-      opts?.ignoreBrush ? undefined : activeBrush,
-      activeTilesetId
-    );
-  };
+  const backgroundVisibleEffective = (() => {
+    if (!orderedLayers) return true;
+    const bg = orderedLayers.find((leaf) => leaf.role === "background");
+    return bg ? isLeafVisible(bg) : true;
+  })();
 
   const toScreen = useToScreen(camera);
   const getRenderSizePx = (token: Token) => {
@@ -1691,9 +1843,10 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     ctx.fillText(label, last.x - textWidth / 2, last.y + 4);
     ctx.restore();
   };
-  const getNextOrder = (layer: TileLayer, layerId?: string | null) => {
+  const getNextOrder = (layerId?: string | null) => {
+    const targetId = layerId ?? null;
     const max = placedTiles
-      .filter((t) => (layerId ? t.layerId === layerId : t.layer === layer))
+      .filter((t) => (targetId ? t.layerId === targetId : !t.layerId))
       .reduce((m, t) => Math.max(m, t.order ?? 0), 0);
     return max + 1;
   };
@@ -1918,36 +2071,25 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     width: number,
     height: number
   ) => {
-    const visibility: Record<TileLayer, boolean> = legacyVisibility;
     const useStackOrdering = !!orderedLayers;
-    const legacySorted = [...placedTiles].sort(
-      (a, b) => (a.order ?? 0) - (b.order ?? 0)
-    );
-
     const layerSequence: Array<{
       tiles: typeof placedTiles;
       leaf?: LayerLeaf;
     }> = [];
+    const assignedTileIds = new Set<string>();
+
     if (useStackOrdering && orderedLayers) {
       orderedLayers.forEach((leaf) => {
-        if (!isLeafVisible(leaf)) return;
-        if (
-          leaf.role === "grid" ||
-          leaf.role === "tokens" ||
-          leaf.role === "fog"
-        )
-          return;
+        if (!isLeafVisible(leaf) || !isPaintableLayer(leaf)) return;
         const tilesForLeaf = placedTiles.filter((t) => {
-          if (t.layerId && t.layerId === leaf.id) return true;
-          const asKey = leaf.id as TileLayer;
-          if (
-            (legacyLayerKeys as readonly string[]).includes(asKey) &&
-            t.layer === asKey
-          )
-            return true;
-          if (leaf.role === "background" && t.layer === "background")
-            return true;
-          return false;
+          if (assignedTileIds.has(t.id)) return false;
+          const matchesLayerId = t.layerId && t.layerId === leaf.id;
+          const matchesRole = !t.layerId && t.layerRole === leaf.role;
+          const matches = matchesLayerId || matchesRole;
+          if (matches) {
+            assignedTileIds.add(t.id);
+          }
+          return matches;
         });
         if (tilesForLeaf.length > 0) {
           const sortedByOrder = [...tilesForLeaf].sort(
@@ -1956,8 +2098,14 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
           layerSequence.push({ tiles: sortedByOrder, leaf });
         }
       });
-    } else {
-      layerSequence.push({ tiles: legacySorted });
+    }
+
+    const leftoverTiles = placedTiles.filter((t) => !assignedTileIds.has(t.id));
+    if (leftoverTiles.length > 0) {
+      const sorted = [...leftoverTiles].sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0)
+      );
+      layerSequence.push({ tiles: sorted });
     }
 
     // Visible world bounds for culling.
@@ -1987,7 +2135,9 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       }
 
       for (const tile of group.tiles) {
-        if (!visibility[tile.layer]) continue;
+        if (tile.layerId && layerVisibilityById[tile.layerId] === false) {
+          continue;
+        }
         if (generation !== renderGeneration.current) {
           return;
         }
@@ -2260,7 +2410,11 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     }
 
     // drag preview
-    if (dragPreviewTile && visibility[dragPreviewTile.layer]) {
+    if (
+      dragPreviewTile &&
+      (!dragPreviewTile.layerId ||
+        layerVisibilityById[dragPreviewTile.layerId] !== false)
+    ) {
       const img =
         imageCache.get(dragPreviewTile.src) ??
         (await loadImage(dragPreviewTile.src));
@@ -2315,10 +2469,15 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       return;
     }
 
-    // Get the lighting layer to check visibility
-    const lightingLayerNode = layers.nodes["lighting"];
-    const isLightingVisible =
-      lightingLayerNode?.type === "layer" ? lightingLayerNode.visible : true;
+    const lightingLeaf = orderedLayers?.find(
+      (leaf) => leaf.role === "lighting"
+    );
+    if (!lightingLeaf) {
+      console.log("[drawLighting] Skipping - no lighting layer present");
+      return;
+    }
+
+    const isLightingVisible = layerVisibilityById[lightingLeaf.id] !== false;
 
     // Skip rendering if lighting layer is hidden or no darkness
     if (darknessOpacity <= 0 || !isLightingVisible) {
@@ -2328,14 +2487,14 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
 
     const lightRadius = 4; // Fixed radius of 4 tiles
     const lightIntensity =
-      (lightingLayerNode?.type === "layer"
-        ? lightingLayerNode.lightIntensity
-        : undefined) ?? 1;
+      lightingLeaf.lightIntensity !== undefined
+        ? lightingLeaf.lightIntensity
+        : 1;
 
     // Find lighting tiles - check both layerId and legacy layer property
     const lightingTiles = placedTiles.filter((t) => {
-      // Check if tile is on the lighting layer (by id or legacy layer name)
-      return t.layerId === "lighting" || t.layer === "lighting";
+      if (t.layerId) return t.layerId === lightingLeaf.id;
+      return t.layerRole === "lighting";
     });
 
     // Load the shading texture
@@ -2357,8 +2516,8 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
         lightRadius,
         lightIntensity,
         lightColor: lightColor ?? "#e1be7a",
-        occluderResolution: 4,
-        rayCount: 360,
+        minRays: 72,
+        maxRays: 360,
         applyColorTint: false,
       },
       shadingImg,
@@ -2439,15 +2598,14 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
           centerY: (worldY - GRID_ORIGIN) / CELL_SIZE,
         };
     const { cellX, cellY } = centerAndSpanToTopLeft(center, rotatedSpan);
-    const placement = resolvePlacementLayerForSrc(src);
-    if (!placement) {
+    const placementLayer = resolvePlacementLayerForSrc(src);
+    if (!placementLayer) {
       setPlacementWarning("Select a layer before painting.");
       return;
     }
     setPlacementWarning(null);
-    const { layer, targetLayerId } = placement;
-    if (isLayerLocked(targetLayerId, layer)) return;
-    const order = getNextOrder(layer, targetLayerId);
+    if (isLayerLocked(placementLayer.id)) return;
+    const order = getNextOrder(placementLayer.id);
     const newTile = {
       id: `${cellX},${cellY}:${Date.now()}`,
       cellX,
@@ -2456,19 +2614,24 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       centerY: center.centerY,
       src,
       rotationIndex,
-      layer,
       order,
-      layerId: targetLayerId,
+      layerId: placementLayer.id,
+      layerRole: placementLayer.role,
     };
     console.log(
       `[PLACE_TILE] Placing tile at (${cellX},${cellY}), current placedTiles.length =`,
       placedTiles.length
     );
     setPlacedTiles((prev) => {
-      const clearLayers = activeBrush?.clearOverlapsLayers ?? ["floor"];
+      const clearTargets =
+        activeBrush?.clearOverlapsLayers &&
+        activeBrush.clearOverlapsLayers.length > 0
+          ? activeBrush.clearOverlapsLayers
+          : [placementLayer.id];
+      const normalizedClearTargets = normalizeClearLayerTargets(clearTargets);
       const withoutOverlap =
-        clearLayers.length > 0
-          ? removeOverlappingTiles(prev, [newTile], clearLayers)
+        normalizedClearTargets.length > 0
+          ? removeOverlappingTiles(prev, [newTile], normalizedClearTargets)
           : prev;
       console.log(
         `[PLACE_TILE] After placement, new placedTiles.length will be =`,
@@ -2685,18 +2848,7 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
         appendToStroke: false,
         commit: false,
         closed: false,
-      }) as
-        | Array<{
-            cellX: number;
-            cellY: number;
-            src: string;
-            rotationIndex: number;
-            mirrorX?: boolean;
-            mirrorY?: boolean;
-            layer: TileLayer;
-            order: number;
-          }>
-        | undefined;
+      }) as Array<(typeof placedTiles)[number]> | undefined;
       if (previewTiles) {
         previewTiles.forEach((t) => {
           const img = imageCache.get(t.src);
@@ -2855,11 +3007,15 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
             centerY: (worldY - GRID_ORIGIN) / CELL_SIZE,
           };
       const topLeft = centerAndSpanToTopLeft(center, span);
+      const placementLayer = resolvePlacementLayerForSrc(src, {
+        ignoreBrush: true,
+      });
       setDragPreviewTile({
         src,
         cellX: topLeft.cellX,
         cellY: topLeft.cellY,
-        layer: resolveTileLayer(src, { ignoreBrush: true }),
+        layerId: placementLayer?.id ?? null,
+        layerRole: placementLayer?.role ?? null,
       });
     } else {
       setDragPreviewTile(null);
@@ -2892,6 +3048,294 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
 
     return null;
   };
+
+  const rotateSelectedTile = useCallback(
+    (delta: number) => {
+      if (selectedPlacedTileIds.size === 0) return;
+      const selection = new Set(selectedPlacedTileIds);
+      const selectedTiles = placedTiles.filter((t) => selection.has(t.id));
+
+      // Free rotation mode: rotate around each tile's image center in 30° increments without snapping to grid.
+      if (!snapEnabled) {
+        setPlacedTiles((prev) => {
+          let changed = false;
+          const next = prev.map((t) => {
+            if (!selection.has(t.id)) return t;
+            if (isTileLocked(t)) return t;
+            changed = true;
+            const currentAngle =
+              typeof t.rotationRadians === "number"
+                ? t.rotationRadians
+                : RIGHT_ANGLE_ROTATIONS[t.rotationIndex] ?? 0;
+            const targetAngle = currentAngle + delta * FREE_ROTATION_STEP;
+            const snappedAngle =
+              Math.round(targetAngle / FREE_ROTATION_STEP) * FREE_ROTATION_STEP;
+            return {
+              ...t,
+              rotationRadians: snappedAngle,
+              // Keep center and cell coordinates unchanged in free mode.
+            };
+          });
+          if (changed) {
+            pushHistory(next);
+          }
+          return next;
+        });
+        return;
+      }
+
+      const selectionKey = Array.from(selection).sort().join(",");
+      const groupPivot =
+        selectionPivotRef.current?.key === selectionKey
+          ? selectionPivotRef.current.pivot
+          : computeGroupPivot(selectedTiles);
+      if (groupPivot && selectionKey) {
+        selectionPivotRef.current = { key: selectionKey, pivot: groupPivot };
+      }
+      const steps =
+        ((delta % RIGHT_ANGLE_ROTATIONS.length) +
+          RIGHT_ANGLE_ROTATIONS.length) %
+        RIGHT_ANGLE_ROTATIONS.length;
+      const orientationDelta =
+        selectedTiles.length > 1
+          ? (((delta + 2) % RIGHT_ANGLE_ROTATIONS.length) +
+              RIGHT_ANGLE_ROTATIONS.length) %
+            RIGHT_ANGLE_ROTATIONS.length
+          : delta;
+      setPlacedTiles((prev) => {
+        let changed = false;
+        const next = prev.map((t) => {
+          if (!selection.has(t.id)) return t;
+          if (isTileLocked(t)) return t;
+          changed = true;
+          const baseSpan = getTileSpanFromName(t.src);
+          const currentFootprint =
+            t.rotationIndex % 2 === 0
+              ? { w: baseSpan.w, h: baseSpan.h }
+              : { w: baseSpan.h, h: baseSpan.w };
+          const currentCenter =
+            typeof t.centerX === "number" && typeof t.centerY === "number"
+              ? { centerX: t.centerX, centerY: t.centerY }
+              : topLeftAndSpanToCenter(
+                  { cellX: t.cellX, cellY: t.cellY },
+                  currentFootprint
+                );
+          const pivot = groupPivot ?? currentCenter;
+          const offset = {
+            x: currentCenter.centerX - pivot.centerX,
+            y: currentCenter.centerY - pivot.centerY,
+          };
+          const rotatedOffset = (() => {
+            switch (steps) {
+              case 1:
+                return { x: offset.y, y: -offset.x };
+              case 2:
+                return { x: -offset.x, y: -offset.y };
+              case 3:
+                return { x: -offset.y, y: offset.x };
+              default:
+                return offset;
+            }
+          })();
+          const rotatedCenter = {
+            centerX: pivot.centerX + rotatedOffset.x,
+            centerY: pivot.centerY + rotatedOffset.y,
+          };
+          const snappedCenter = {
+            centerX: snapToCellCenter(rotatedCenter.centerX),
+            centerY: snapToCellCenter(rotatedCenter.centerY),
+          };
+          const nextRotation =
+            (t.rotationIndex +
+              orientationDelta +
+              RIGHT_ANGLE_ROTATIONS.length) %
+            RIGHT_ANGLE_ROTATIONS.length;
+          const nextFootprint =
+            nextRotation % 2 === 0
+              ? { w: baseSpan.w, h: baseSpan.h }
+              : { w: baseSpan.h, h: baseSpan.w };
+          const nextTopLeft = centerAndSpanToTopLeft(
+            snappedCenter,
+            nextFootprint
+          );
+          return {
+            ...t,
+            rotationIndex: nextRotation,
+            cellX: nextTopLeft.cellX,
+            cellY: nextTopLeft.cellY,
+            centerX: snappedCenter.centerX,
+            centerY: snappedCenter.centerY,
+          };
+        });
+        if (changed) {
+          pushHistory(next);
+        }
+        return next;
+      });
+    },
+    [selectedPlacedTileIds, placedTiles, snapEnabled, pushHistory, isTileLocked]
+  );
+
+  const nudgeSelectedTiles = useCallback(
+    (dx: number, dy: number) => {
+      if (selectedPlacedTileIds.size === 0) return;
+      const selection = new Set(selectedPlacedTileIds);
+      setPlacedTiles((prev) => {
+        let changed = false;
+        const next = prev.map((t) => {
+          if (!selection.has(t.id)) return t;
+          changed = true;
+          const fp = getTileFootprint(t);
+          const baseCenter = (() => {
+            if (!snapEnabled) return fp.center;
+            const worldX = GRID_ORIGIN + fp.center.centerX * CELL_SIZE;
+            const worldY = GRID_ORIGIN + fp.center.centerY * CELL_SIZE;
+            return snapWorldToCenter(
+              worldX,
+              worldY,
+              fp.footprint,
+              GRID_ORIGIN,
+              CELL_SIZE
+            );
+          })();
+          const baseTopLeft = centerAndSpanToTopLeft(baseCenter, fp.footprint);
+          const nextTopLeft = {
+            cellX: baseTopLeft.cellX + dx,
+            cellY: baseTopLeft.cellY + dy,
+          };
+          const nextCenter = topLeftAndSpanToCenter(nextTopLeft, fp.footprint);
+          return {
+            ...t,
+            cellX: nextTopLeft.cellX,
+            cellY: nextTopLeft.cellY,
+            centerX: nextCenter.centerX,
+            centerY: nextCenter.centerY,
+          };
+        });
+        if (changed) {
+          pushHistory(next);
+        }
+        return next;
+      });
+      selectionPivotRef.current = null;
+    },
+    [selectedPlacedTileIds, snapEnabled, pushHistory]
+  );
+
+  const mirrorSelectedTiles = useCallback(
+    (axis: "x" | "y") => {
+      if (selectedPlacedTileIds.size === 0) return;
+      const selection = new Set(selectedPlacedTileIds);
+      const selectedTiles = placedTiles.filter((t) => selection.has(t.id));
+      const groupPivot = (() => {
+        if (selectedTiles.length <= 1) return null;
+        let minX = Number.POSITIVE_INFINITY;
+        let minY = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        let maxY = Number.NEGATIVE_INFINITY;
+        selectedTiles.forEach((t) => {
+          const fp = getTileFootprint(t);
+          const left = fp.center.centerX - fp.footprint.w / 2;
+          const top = fp.center.centerY - fp.footprint.h / 2;
+          const right = fp.center.centerX + fp.footprint.w / 2;
+          const bottom = fp.center.centerY + fp.footprint.h / 2;
+          minX = Math.min(minX, left);
+          minY = Math.min(minY, top);
+          maxX = Math.max(maxX, right);
+          maxY = Math.max(maxY, bottom);
+        });
+        const rawCenter = {
+          centerX: (minX + maxX) / 2,
+          centerY: (minY + maxY) / 2,
+        };
+        return {
+          centerX: snapToCellCenter(rawCenter.centerX),
+          centerY: snapToCellCenter(rawCenter.centerY),
+        };
+      })();
+      setPlacedTiles((prev) => {
+        let changed = false;
+        const next = prev.map((t) => {
+          if (!selection.has(t.id)) return t;
+          if (isTileLocked(t)) return t;
+          changed = true;
+          const baseSpan = getTileSpanFromName(t.src);
+          const footprint =
+            t.rotationIndex % 2 === 0
+              ? { w: baseSpan.w, h: baseSpan.h }
+              : { w: baseSpan.h, h: baseSpan.w };
+          const center =
+            typeof t.centerX === "number" && typeof t.centerY === "number"
+              ? { centerX: t.centerX, centerY: t.centerY }
+              : topLeftAndSpanToCenter(
+                  { cellX: t.cellX, cellY: t.cellY },
+                  footprint
+                );
+          const pivot = groupPivot ?? center;
+          const reflectedCenter =
+            axis === "x"
+              ? {
+                  centerX: pivot.centerX - (center.centerX - pivot.centerX),
+                  centerY: center.centerY,
+                }
+              : {
+                  centerX: center.centerX,
+                  centerY: pivot.centerY - (center.centerY - pivot.centerY),
+                };
+          const snappedCenter = {
+            centerX: snapToCellCenter(reflectedCenter.centerX),
+            centerY: snapToCellCenter(reflectedCenter.centerY),
+          };
+          // Keep tile rotation as-is; flip the artwork along the appropriate local axis derived from world mirror axis.
+          const nextRotation = t.rotationIndex;
+          const toggleLocalMirrors = (() => {
+            const mod =
+              ((t.rotationIndex % RIGHT_ANGLE_ROTATIONS.length) +
+                RIGHT_ANGLE_ROTATIONS.length) %
+              RIGHT_ANGLE_ROTATIONS.length;
+            if (axis === "x") {
+              // World vertical axis: in local space, x when upright/180, y when 90/270.
+              const flipX = mod === 0 || mod === 2;
+              return {
+                mirrorX: flipX ? !t.mirrorX : t.mirrorX,
+                mirrorY: flipX ? t.mirrorY : !t.mirrorY,
+              };
+            }
+            // axis === "y"
+            const flipY = mod === 0 || mod === 2;
+            return {
+              mirrorX: flipY ? t.mirrorX : !t.mirrorX,
+              mirrorY: flipY ? !t.mirrorY : t.mirrorY,
+            };
+          })();
+          const nextFootprint =
+            nextRotation % 2 === 0
+              ? { w: baseSpan.w, h: baseSpan.h }
+              : { w: baseSpan.h, h: baseSpan.w };
+          const nextTopLeft = centerAndSpanToTopLeft(
+            snappedCenter,
+            nextFootprint
+          );
+          return {
+            ...t,
+            rotationIndex: nextRotation,
+            mirrorX: toggleLocalMirrors.mirrorX,
+            mirrorY: toggleLocalMirrors.mirrorY,
+            cellX: nextTopLeft.cellX,
+            cellY: nextTopLeft.cellY,
+            centerX: snappedCenter.centerX,
+            centerY: snappedCenter.centerY,
+          };
+        });
+        if (changed) {
+          pushHistory(next);
+        }
+        return next;
+      });
+      selectionPivotRef.current = null;
+    },
+    [selectedPlacedTileIds, placedTiles, pushHistory, isTileLocked]
+  );
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -2967,16 +3411,24 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       }
       if (e.code === "KeyH") {
         e.preventDefault();
-        mirrorSelectedTiles("x"); // horizontal flip across vertical axis
+        mirrorSelectedTiles("x");
       }
       if (e.code === "KeyV") {
         e.preventDefault();
-        mirrorSelectedTiles("y"); // vertical flip across horizontal axis
+        mirrorSelectedTiles("y");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedPlacedTileIds, snapEnabled]);
+  }, [
+    selectedPlacedTileIds,
+    snapEnabled,
+    isTileLocked,
+    rotateSelectedTile,
+    nudgeSelectedTiles,
+    mirrorSelectedTiles,
+    pushHistory,
+  ]);
 
   useEffect(() => {
     const handleDocumentMouseDown = (event: MouseEvent) => {
@@ -3086,7 +3538,7 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     mapSeed,
     resizeTick,
     placedTiles,
-    legacyVisibility,
+    layerVisibilityById,
     roomDrag,
     lineDrag,
     polygonPath,
@@ -3111,7 +3563,6 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     if (!canvasSized) return;
     centerCameraOnOrigin(1);
     cameraInitializedRef.current = true;
-    setCameraReady(true);
   }, [selectedMapId, canvasSized, mapSeed]);
 
   const centerOnSelection = () => {
@@ -3166,7 +3617,6 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       "border",
       "area",
       "polygon",
-      "gradient",
       "fog",
       "erase",
     ].includes(activeTool);
@@ -3215,8 +3665,7 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       .slice()
       .reverse()
       .find((t) => {
-        const visible = legacyVisibility[t.layer] ?? true;
-        if (!visible) return false;
+        if (!isTileVisible(t)) return false;
         if (isTileLocked(t)) return false;
         // Alpha-based pixel hit test at cursor position
         return hitTestTileAlpha(cx, cy, t);
@@ -3440,8 +3889,7 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       .slice()
       .reverse()
       .find((t) => {
-        const visible = legacyVisibility[t.layer] ?? true;
-        if (!visible) return false;
+        if (!isTileVisible(t)) return false;
         return hitTestTileAlpha(cx, cy, t);
       });
 
@@ -3713,32 +4161,21 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     const maxX = Math.max(start.cellX, end.cellX);
     const minY = Math.min(start.cellY, end.cellY);
     const maxY = Math.max(start.cellY, end.cellY);
-    const placement = resolvePlacementLayerForSrc(tiles?.[0]);
-    if (!placement) {
+    const placementLayer = resolvePlacementLayerForSrc(tiles?.[0]);
+    if (!placementLayer) {
       setPlacementWarning("Select a layer before painting.");
       return;
     }
     setPlacementWarning(null);
-    const { layer, targetLayerId } = placement;
-    if (isLayerLocked(targetLayerId, layer)) return;
-    const clearLayers = activeBrush?.clearOverlapsLayers ?? ["floor"];
-    const baseOrder = getNextOrder(layer, targetLayerId);
-    const toPlace: Array<{
-      id: string;
-      cellX: number;
-      cellY: number;
-      src: string;
-      rotationIndex: number;
-      strokeId?: string;
-      layer: TileLayer;
-      order: number;
-      layerId?: string | null;
-      mirrorX?: boolean;
-      mirrorY?: boolean;
-      centerX?: number;
-      centerY?: number;
-      scale?: number;
-    }> = [];
+    if (isLayerLocked(placementLayer.id)) return;
+    const clearTargets =
+      activeBrush?.clearOverlapsLayers &&
+      activeBrush.clearOverlapsLayers.length > 0
+        ? activeBrush.clearOverlapsLayers
+        : [placementLayer.id];
+    const normalizedClearTargets = normalizeClearLayerTargets(clearTargets);
+    const baseOrder = getNextOrder(placementLayer.id);
+    const toPlace: Array<(typeof placedTiles)[number]> = [];
     let counter = 0;
     const positionJitter = !useBorders
       ? activeBrush?.randomness?.positionJitter ?? 0
@@ -3866,9 +4303,9 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
           rotationIndex,
           mirrorX: chosen.mirrorX,
           strokeId,
-          layer,
           order: baseOrder + counter,
-          layerId: targetLayerId,
+          layerId: placementLayer.id,
+          layerRole: placementLayer.role,
         });
       };
       // corners with fallback to random _c tile or random edge tile rotated
@@ -3947,9 +4384,9 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
             centerY,
             scale,
             strokeId,
-            layer,
             order: baseOrder + counter,
-            layerId: targetLayerId,
+            layerId: placementLayer.id,
+            layerRole: placementLayer.role,
           });
         }
       }
@@ -3962,10 +4399,10 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       });
       const shouldClearOverlaps =
         !useBorders &&
-        clearLayers.length > 0 &&
-        toPlace.some((t) => clearLayers.includes(t.layer));
+        normalizedClearTargets.length > 0 &&
+        toPlace.some((t) => matchesClearLayerTarget(t, normalizedClearTargets));
       const cleared = shouldClearOverlaps
-        ? removeOverlappingTiles(filtered, toPlace, clearLayers)
+        ? removeOverlappingTiles(filtered, toPlace, normalizedClearTargets)
         : filtered;
       nextTiles = [...cleared, ...toPlace];
       return nextTiles;
@@ -4141,17 +4578,20 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     }
     const baseRotationIndex = baseDir; // 0:right,1:down,2:left,3:up
 
-    const placement = resolvePlacementLayerForSrc(tiles?.[0]);
-    if (!placement) {
+    const placementLayer = resolvePlacementLayerForSrc(tiles?.[0]);
+    if (!placementLayer) {
       setPlacementWarning("Select a layer before painting.");
       return;
     }
     setPlacementWarning(null);
-    const { layer, targetLayerId } = placement;
-    if (isLayerLocked(targetLayerId, layer)) return;
-    const clearLayers = skipClearOverlaps
-      ? []
-      : activeBrush?.clearOverlapsLayers ?? ["floor"];
+    if (isLayerLocked(placementLayer.id)) return;
+    const defaultClearTargets =
+      activeBrush?.clearOverlapsLayers &&
+      activeBrush.clearOverlapsLayers.length > 0
+        ? activeBrush.clearOverlapsLayers
+        : [placementLayer.id];
+    const clearTargets = skipClearOverlaps ? [] : defaultClearTargets;
+    const normalizedClearTargets = normalizeClearLayerTargets(clearTargets);
 
     // Endpoint and corner handling:
     // - Tiles whose filenames contain any of the configured endpoint suffixes
@@ -4287,9 +4727,9 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
         src,
         rotationIndex,
         strokeId,
-        layer,
-        order: getNextOrder(layer) + idx,
-        layerId: targetLayerId,
+        order: getNextOrder(placementLayer.id) + idx,
+        layerId: placementLayer.id,
+        layerRole: placementLayer.role,
       };
     });
     const toPlace = toPlaceRaw.filter((_, idx) => {
@@ -4311,10 +4751,10 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
             return true;
           });
       const shouldClearOverlaps =
-        clearLayers.length > 0 &&
-        toPlace.some((t) => clearLayers.includes(t.layer));
+        normalizedClearTargets.length > 0 &&
+        toPlace.some((t) => matchesClearLayerTarget(t, normalizedClearTargets));
       const cleared = shouldClearOverlaps
-        ? removeOverlappingTiles(filtered, toPlace, clearLayers)
+        ? removeOverlappingTiles(filtered, toPlace, normalizedClearTargets)
         : filtered;
       nextTiles = [...cleared, ...toPlace];
       return nextTiles;
@@ -4325,287 +4765,14 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
     return nextTiles;
   };
 
-  const rotateSelectedTile = (delta: number) => {
-    if (selectedPlacedTileIds.size === 0) return;
-    const selection = new Set(selectedPlacedTileIds);
-    const selectedTiles = placedTiles.filter((t) => selection.has(t.id));
-
-    // Free rotation mode: rotate around each tile's image center in 30° increments without snapping to grid.
-    if (!snapEnabled) {
-      setPlacedTiles((prev) => {
-        let changed = false;
-        const next = prev.map((t) => {
-          if (!selection.has(t.id)) return t;
-          if (isTileLocked(t)) return t;
-          changed = true;
-          const currentAngle =
-            typeof t.rotationRadians === "number"
-              ? t.rotationRadians
-              : RIGHT_ANGLE_ROTATIONS[t.rotationIndex] ?? 0;
-          const targetAngle = currentAngle + delta * FREE_ROTATION_STEP;
-          const snappedAngle =
-            Math.round(targetAngle / FREE_ROTATION_STEP) * FREE_ROTATION_STEP;
-          return {
-            ...t,
-            rotationRadians: snappedAngle,
-            // Keep center and cell coordinates unchanged in free mode.
-          };
-        });
-        if (changed) {
-          pushHistory(next);
-        }
-        return next;
-      });
-      return;
-    }
-
-    const selectionKey = Array.from(selection).sort().join(",");
-    const groupPivot =
-      selectionPivotRef.current?.key === selectionKey
-        ? selectionPivotRef.current.pivot
-        : computeGroupPivot(selectedTiles);
-    if (groupPivot && selectionKey) {
-      selectionPivotRef.current = { key: selectionKey, pivot: groupPivot };
-    }
-    const steps =
-      ((delta % RIGHT_ANGLE_ROTATIONS.length) + RIGHT_ANGLE_ROTATIONS.length) %
-      RIGHT_ANGLE_ROTATIONS.length;
-    const orientationDelta =
-      selectedTiles.length > 1
-        ? (((delta + 2) % RIGHT_ANGLE_ROTATIONS.length) +
-            RIGHT_ANGLE_ROTATIONS.length) %
-          RIGHT_ANGLE_ROTATIONS.length
-        : delta;
-    setPlacedTiles((prev) => {
-      let changed = false;
-      const next = prev.map((t) => {
-        if (!selection.has(t.id)) return t;
-        if (isTileLocked(t)) return t;
-        changed = true;
-        const baseSpan = getTileSpanFromName(t.src);
-        const currentFootprint =
-          t.rotationIndex % 2 === 0
-            ? { w: baseSpan.w, h: baseSpan.h }
-            : { w: baseSpan.h, h: baseSpan.w };
-        const currentCenter =
-          typeof t.centerX === "number" && typeof t.centerY === "number"
-            ? { centerX: t.centerX, centerY: t.centerY }
-            : topLeftAndSpanToCenter(
-                { cellX: t.cellX, cellY: t.cellY },
-                currentFootprint
-              );
-        const pivot = groupPivot ?? currentCenter;
-        const offset = {
-          x: currentCenter.centerX - pivot.centerX,
-          y: currentCenter.centerY - pivot.centerY,
-        };
-        const rotatedOffset = (() => {
-          switch (steps) {
-            case 1:
-              return { x: offset.y, y: -offset.x };
-            case 2:
-              return { x: -offset.x, y: -offset.y };
-            case 3:
-              return { x: -offset.y, y: offset.x };
-            default:
-              return offset;
-          }
-        })();
-        const rotatedCenter = {
-          centerX: pivot.centerX + rotatedOffset.x,
-          centerY: pivot.centerY + rotatedOffset.y,
-        };
-        const snappedCenter = {
-          centerX: snapToCellCenter(rotatedCenter.centerX),
-          centerY: snapToCellCenter(rotatedCenter.centerY),
-        };
-        const nextRotation =
-          (t.rotationIndex + orientationDelta + RIGHT_ANGLE_ROTATIONS.length) %
-          RIGHT_ANGLE_ROTATIONS.length;
-        const nextFootprint =
-          nextRotation % 2 === 0
-            ? { w: baseSpan.w, h: baseSpan.h }
-            : { w: baseSpan.h, h: baseSpan.w };
-        const nextTopLeft = centerAndSpanToTopLeft(
-          snappedCenter,
-          nextFootprint
-        );
-        return {
-          ...t,
-          rotationIndex: nextRotation,
-          cellX: nextTopLeft.cellX,
-          cellY: nextTopLeft.cellY,
-          centerX: snappedCenter.centerX,
-          centerY: snappedCenter.centerY,
-        };
-      });
-      if (changed) {
-        pushHistory(next);
-      }
-      return next;
-    });
-  };
-
-  const nudgeSelectedTiles = (dx: number, dy: number) => {
-    if (selectedPlacedTileIds.size === 0) return;
-    const selection = new Set(selectedPlacedTileIds);
-    setPlacedTiles((prev) => {
-      let changed = false;
-      const next = prev.map((t) => {
-        if (!selection.has(t.id)) return t;
-        changed = true;
-        const fp = getTileFootprint(t);
-        const baseCenter = (() => {
-          if (!snapEnabled) return fp.center;
-          const worldX = GRID_ORIGIN + fp.center.centerX * CELL_SIZE;
-          const worldY = GRID_ORIGIN + fp.center.centerY * CELL_SIZE;
-          return snapWorldToCenter(
-            worldX,
-            worldY,
-            fp.footprint,
-            GRID_ORIGIN,
-            CELL_SIZE
-          );
-        })();
-        const baseTopLeft = centerAndSpanToTopLeft(baseCenter, fp.footprint);
-        const nextTopLeft = {
-          cellX: baseTopLeft.cellX + dx,
-          cellY: baseTopLeft.cellY + dy,
-        };
-        const nextCenter = topLeftAndSpanToCenter(nextTopLeft, fp.footprint);
-        return {
-          ...t,
-          cellX: nextTopLeft.cellX,
-          cellY: nextTopLeft.cellY,
-          centerX: nextCenter.centerX,
-          centerY: nextCenter.centerY,
-        };
-      });
-      if (changed) {
-        pushHistory(next);
-      }
-      return next;
-    });
-    selectionPivotRef.current = null;
-  };
-
-  const mirrorSelectedTiles = (axis: "x" | "y") => {
-    if (selectedPlacedTileIds.size === 0) return;
-    const selection = new Set(selectedPlacedTileIds);
-    const selectedTiles = placedTiles.filter((t) => selection.has(t.id));
-    const groupPivot = (() => {
-      if (selectedTiles.length <= 1) return null;
-      let minX = Number.POSITIVE_INFINITY;
-      let minY = Number.POSITIVE_INFINITY;
-      let maxX = Number.NEGATIVE_INFINITY;
-      let maxY = Number.NEGATIVE_INFINITY;
-      selectedTiles.forEach((t) => {
-        const fp = getTileFootprint(t);
-        const left = fp.center.centerX - fp.footprint.w / 2;
-        const top = fp.center.centerY - fp.footprint.h / 2;
-        const right = fp.center.centerX + fp.footprint.w / 2;
-        const bottom = fp.center.centerY + fp.footprint.h / 2;
-        minX = Math.min(minX, left);
-        minY = Math.min(minY, top);
-        maxX = Math.max(maxX, right);
-        maxY = Math.max(maxY, bottom);
-      });
-      const rawCenter = {
-        centerX: (minX + maxX) / 2,
-        centerY: (minY + maxY) / 2,
-      };
-      return {
-        centerX: snapToCellCenter(rawCenter.centerX),
-        centerY: snapToCellCenter(rawCenter.centerY),
-      };
-    })();
-    setPlacedTiles((prev) => {
-      let changed = false;
-      const next = prev.map((t) => {
-        if (!selection.has(t.id)) return t;
-        if (isTileLocked(t)) return t;
-        changed = true;
-        const baseSpan = getTileSpanFromName(t.src);
-        const footprint =
-          t.rotationIndex % 2 === 0
-            ? { w: baseSpan.w, h: baseSpan.h }
-            : { w: baseSpan.h, h: baseSpan.w };
-        const center =
-          typeof t.centerX === "number" && typeof t.centerY === "number"
-            ? { centerX: t.centerX, centerY: t.centerY }
-            : topLeftAndSpanToCenter(
-                { cellX: t.cellX, cellY: t.cellY },
-                footprint
-              );
-        const pivot = groupPivot ?? center;
-        const reflectedCenter =
-          axis === "x"
-            ? {
-                centerX: pivot.centerX - (center.centerX - pivot.centerX),
-                centerY: center.centerY,
-              }
-            : {
-                centerX: center.centerX,
-                centerY: pivot.centerY - (center.centerY - pivot.centerY),
-              };
-        const snappedCenter = {
-          centerX: snapToCellCenter(reflectedCenter.centerX),
-          centerY: snapToCellCenter(reflectedCenter.centerY),
-        };
-        // Keep tile rotation as-is; flip the artwork along the appropriate local axis derived from world mirror axis.
-        const nextRotation = t.rotationIndex;
-        const toggleLocalMirrors = (() => {
-          const mod =
-            ((t.rotationIndex % RIGHT_ANGLE_ROTATIONS.length) +
-              RIGHT_ANGLE_ROTATIONS.length) %
-            RIGHT_ANGLE_ROTATIONS.length;
-          if (axis === "x") {
-            // World vertical axis: in local space, x when upright/180, y when 90/270.
-            const flipX = mod === 0 || mod === 2;
-            return {
-              mirrorX: flipX ? !t.mirrorX : t.mirrorX,
-              mirrorY: flipX ? t.mirrorY : !t.mirrorY,
-            };
-          }
-          // axis === "y"
-          const flipY = mod === 0 || mod === 2;
-          return {
-            mirrorX: flipY ? t.mirrorX : !t.mirrorX,
-            mirrorY: flipY ? !t.mirrorY : t.mirrorY,
-          };
-        })();
-        const nextFootprint =
-          nextRotation % 2 === 0
-            ? { w: baseSpan.w, h: baseSpan.h }
-            : { w: baseSpan.h, h: baseSpan.w };
-        const nextTopLeft = centerAndSpanToTopLeft(
-          snappedCenter,
-          nextFootprint
-        );
-        return {
-          ...t,
-          rotationIndex: nextRotation,
-          mirrorX: toggleLocalMirrors.mirrorX,
-          mirrorY: toggleLocalMirrors.mirrorY,
-          cellX: nextTopLeft.cellX,
-          cellY: nextTopLeft.cellY,
-          centerX: snappedCenter.centerX,
-          centerY: snappedCenter.centerY,
-        };
-      });
-      if (changed) {
-        pushHistory(next);
-      }
-      return next;
-    });
-    selectionPivotRef.current = null;
-  };
-
   const nudgeTileOrder = (direction: 1 | -1) => {
     if (!selectedPlacedTile) return;
     setPlacedTiles((prev) => {
+      const targetLayerId = selectedPlacedTile.layerId ?? null;
       const sameLayer = prev
-        .filter((t) => t.layer === selectedPlacedTile.layer)
+        .filter((t) =>
+          targetLayerId ? t.layerId === targetLayerId : !t.layerId
+        )
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       const idx = sameLayer.findIndex((t) => t.id === selectedPlacedTile.id);
       const targetIdx = idx + direction;
@@ -4783,18 +4950,17 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       null;
     if (src) {
       try {
-        const placement = resolvePlacementLayerForSrc(src, {
+        const placementLayer = resolvePlacementLayerForSrc(src, {
           ignoreBrush: true,
         });
-        if (!placement) {
+        if (!placementLayer) {
           setPlacementWarning("Select a layer before painting.");
           return;
         }
         setPlacementWarning(null);
-        const { layer, targetLayerId } = placement;
-        if (isLayerLocked(targetLayerId, layer)) return;
+        if (isLayerLocked(placementLayer.id)) return;
         const newId = `tile-${Date.now()}`;
-        const order = getNextOrder(layer, targetLayerId);
+        const order = getNextOrder(placementLayer.id);
         const span = getTileSizeCells(src);
         const mirrorX = shouldMirrorTileOnDrop(src);
         const center = snapEnabled
@@ -4814,9 +4980,9 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
               src,
               rotationIndex: 0,
               mirrorX,
-              layer,
               order,
-              layerId: targetLayerId,
+              layerId: placementLayer.id,
+              layerRole: placementLayer.role,
               centerX: center.centerX,
               centerY: center.centerY,
             },
@@ -4946,13 +5112,6 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       onClick: () => setActiveTool("area"),
     },
     {
-      key: "gradient",
-      label: "Gradient",
-      icon: gradientIcon.src,
-      active: activeTool === "gradient",
-      onClick: () => setActiveTool("gradient"),
-    },
-    {
       key: "freehand",
       label: "Tile brush",
       icon: brushIcon.src,
@@ -5042,6 +5201,13 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
               onClick={saveMapState}
             >
               Save
+            </button>
+            <button
+              type="button"
+              style={styles.secondaryButton}
+              onClick={handleResetMap}
+            >
+              Reset
             </button>
             <div style={{ display: "flex", gap: 4 }}>
               <button
@@ -5274,8 +5440,6 @@ const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
               return `url(${roomIcon.src}) 12 12, crosshair`;
             if (activeTool === "area")
               return `url(${areaIcon.src}) 12 12, crosshair`;
-            if (activeTool === "gradient")
-              return `url(${gradientIcon.src}) 12 12, crosshair`;
             if (activeTool === "measure")
               return `url(${measureIcon.src}) 12 12, crosshair`;
             if (activeTool === "fog")

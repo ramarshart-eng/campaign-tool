@@ -83,12 +83,12 @@ const NotesPages: React.FC<Props> = ({
       {isFirstSpread && (
         firstSpreadOnRight
           ? (rightRef.current ? createPortal(
-              <div style={{ position: "absolute", top: "var(--content-pad-y)", left: 0, right: 0, height: "calc(var(--header-rows, 3) * var(--rlh, 1.5rem))", display: "flex", alignItems: "center", gap: ".5rem", paddingLeft: "var(--page-side-pad)", paddingRight: "var(--page-side-pad)", background: "transparent", zIndex: 2 }}>
-                <input className="border-b-2 border-black bg-transparent flex-1 min-w-0" placeholder="Title" value={entries.find((e) => e.id === (activeId || ""))?.title ?? ""} onChange={(e) => onRenameEntry?.(e.target.value)} aria-label="Entry title" />
+              <div style={{ position: "absolute", top: "var(--content-pad-y)", left: 0, right: 0, height: "calc(var(--header-rows, 3) * var(--rlh, 1.5rem))", display: "flex", alignItems: "center", gap: "var(--spacing-sm)", paddingLeft: "var(--page-side-pad)", paddingRight: "var(--page-side-pad)", background: "transparent", zIndex: 2 }}>
+                <input className="input flex-1 min-w-0" placeholder="Title" value={entries.find((e) => e.id === (activeId || ""))?.title ?? ""} onChange={(e) => onRenameEntry?.(e.target.value)} aria-label="Entry title" />
               </div>, rightRef.current) : null)
           : (
-              <div style={{ position: "absolute", top: "var(--content-pad-y)", left: 0, right: 0, height: "calc(var(--header-rows, 3) * var(--rlh, 1.5rem))", display: "flex", alignItems: "center", gap: ".5rem", paddingLeft: "var(--page-side-pad)", paddingRight: "var(--page-side-pad)", background: "transparent", zIndex: 2 }}>
-                <input className="border-b-2 border-black bg-transparent flex-1 min-w-0" placeholder="Title" value={entries.find((e) => e.id === (activeId || ""))?.title ?? ""} onChange={(e) => onRenameEntry?.(e.target.value)} aria-label="Entry title" />
+              <div style={{ position: "absolute", top: "var(--content-pad-y)", left: 0, right: 0, height: "calc(var(--header-rows, 3) * var(--rlh, 1.5rem))", display: "flex", alignItems: "center", gap: "var(--spacing-sm)", paddingLeft: "var(--page-side-pad)", paddingRight: "var(--page-side-pad)", background: "transparent", zIndex: 2 }}>
+                <input className="input flex-1 min-w-0" placeholder="Title" value={entries.find((e) => e.id === (activeId || ""))?.title ?? ""} onChange={(e) => onRenameEntry?.(e.target.value)} aria-label="Entry title" />
               </div>
             )
       )}

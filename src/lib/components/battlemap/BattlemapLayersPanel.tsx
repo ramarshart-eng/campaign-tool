@@ -44,8 +44,11 @@ type BattlemapLayersPanelProps = {
   onShadowOpacityChange: (layerId: string, opacity: number) => void;
   shadeOpacityByLayer: Record<string, number | undefined>;
   onShadeOpacityChange: (layerId: string, opacity: number) => void;
+  onDarknessOpacityChange: (opacity: number) => void;
   onSelectTilesForLayers?: (layerIds: string[]) => void;
   onCreateGroupFromLayers?: (layerIds: string[]) => void;
+  onSavePreset?: (name: string, visibleLayerIds: string[]) => void;
+  onApplyPreset?: (presetId: string) => void;
 };
 
 const iconButtonStyle: React.CSSProperties = {

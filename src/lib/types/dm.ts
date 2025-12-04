@@ -73,6 +73,7 @@ export interface EncounterEntity extends BaseEntity {
   kind: "encounter";
   sessionId?: string | null;
   sceneNoteId?: string | null;
+  mapId?: string | null;
   summary?: string;
   environment?: "dungeon" | "wilderness" | "urban" | "planar" | "other" | null;
   difficulty?: "trivial" | "easy" | "medium" | "hard" | "deadly" | null;
@@ -106,6 +107,15 @@ export interface EncounterRunState {
 export interface MapEntity extends BaseEntity {
   kind: "map";
   locationId?: string | null;
+  /** Serialized layer stack JSON from battlemap editor */
+  layerData?: string | null;
+  /** Serialized tile data JSON from battlemap editor */
+  tileData?: string | null;
+  /** Map dimensions */
+  gridWidth?: number;
+  gridHeight?: number;
+  /** Environment ID for tileset selection */
+  environmentId?: string | null;
 }
 
 export interface FactionEntity extends BaseEntity {

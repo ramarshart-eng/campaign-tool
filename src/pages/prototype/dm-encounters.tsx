@@ -3,6 +3,7 @@ import type { NextPage } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useDmContext } from "@/lib/context/DmContext";
+import { useWorkingSession } from "@/lib/hooks/useWorkingSession";
 import type { EncounterEntity, NpcEntity } from "@/lib/types/dm";
 import {
   SRD_MONSTER_SUMMARIES,
@@ -12,6 +13,7 @@ import DmLayout from "@/lib/components/layout/DmLayout";
 
 const DmEncountersPage: NextPage = () => {
   const router = useRouter();
+  const { workingSession, setWorkingSession, buildUrl } = useWorkingSession();
   const {
     currentSession,
     sessionsForCurrent,
@@ -43,8 +45,13 @@ const DmEncountersPage: NextPage = () => {
     "creatures"
   );
 
+  const handleSelectEncounter = React.useCallback((encounterId: string) => {
+    setSelectedEncounterId(encounterId);
+    setWorkingSession({ encounterId });
+  }, [setWorkingSession]);
+
   React.useEffect(() => {
-    const queryEncounter = router.query.encounterId;
+    const queryEncounter = workingSession.encounterId ?? router.query.encounterId;
     if (
       typeof queryEncounter === "string" &&
       encountersForCurrent.some((enc) => enc.id === queryEncounter)
@@ -61,7 +68,7 @@ const DmEncountersPage: NextPage = () => {
     ) {
       setSelectedEncounterId(encountersForCurrent[0]?.id ?? null);
     }
-  }, [router.query.encounterId, encountersForCurrent, selectedEncounterId]);
+  }, [workingSession.encounterId, router.query.encounterId, encountersForCurrent, selectedEncounterId]);
 
   const selectedEncounter: EncounterEntity | null =
     encountersForCurrent.find((enc) => enc.id === selectedEncounterId) ?? null;
@@ -183,7 +190,7 @@ const DmEncountersPage: NextPage = () => {
               <h2>Encounters</h2>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn"
                 onClick={handleNewEncounter}
               >
                 New Encounter
@@ -294,7 +301,7 @@ const DmEncountersPage: NextPage = () => {
               <h2>Details</h2>
               {selectedEncounter?.sessionId && (
                 <Link
-                  className="btn-primary"
+                  className="btn"
                   href={`/prototype/dm-play?sessionId=${selectedEncounter.sessionId}${
                     selectedEncounter.sceneNoteId
                       ? `&sceneId=${selectedEncounter.sceneNoteId}`
@@ -310,11 +317,11 @@ const DmEncountersPage: NextPage = () => {
                 className="dm-encounters__form"
                 onSubmit={(e) => e.preventDefault()}
               >
-                <label className="field-label">
+                <label className="label">
                   Name
                   <input
                     type="text"
-                    className="field-input"
+                    className="input"
                     value={selectedEncounter.name}
                     onChange={(e) =>
                       handleEncounterUpdate((enc) => ({
@@ -324,7 +331,7 @@ const DmEncountersPage: NextPage = () => {
                     }
                   />
                 </label>
-                <label className="field-label">
+                <label className="label">
                   Summary
                   <textarea
                     className="field-textarea"
@@ -338,10 +345,10 @@ const DmEncountersPage: NextPage = () => {
                     }
                   />
                 </label>
-                <label className="field-label">
+                <label className="label">
                   Session
                   <select
-                    className="field-select"
+                    className="select"
                     value={selectedEncounter.sessionId ?? ""}
                     onChange={(e) =>
                       handleEncounterUpdate((enc) => ({
@@ -358,10 +365,10 @@ const DmEncountersPage: NextPage = () => {
                     ))}
                   </select>
                 </label>
-                <label className="field-label">
+                <label className="label">
                   Scene note
                   <select
-                    className="field-select"
+                    className="select"
                     value={selectedEncounter.sceneNoteId ?? ""}
                     onChange={(e) =>
                       handleEncounterUpdate((enc) => ({
@@ -378,10 +385,10 @@ const DmEncountersPage: NextPage = () => {
                     ))}
                   </select>
                 </label>
-                <label className="field-label">
+                <label className="label">
                   Environment
                   <select
-                    className="field-select"
+                    className="select"
                     value={selectedEncounter.environment ?? ""}
                     onChange={(e) =>
                       handleEncounterUpdate((enc) => ({
@@ -399,10 +406,10 @@ const DmEncountersPage: NextPage = () => {
                     <option value="other">Other</option>
                   </select>
                 </label>
-                <label className="field-label">
+                <label className="label">
                   Tags (comma separated)
                   <input
-                    className="field-input"
+                    className="input"
                     type="text"
                     value={(selectedEncounter.tags ?? []).join(", ")}
                     onChange={(e) => {
@@ -439,8 +446,8 @@ const DmEncountersPage: NextPage = () => {
                 <div className="dm-encounters__delete">
                   <button
                     type="button"
-                    className={`btn-primary${
-                      deleteConfirm ? " is-danger" : ""
+                    className={`btn${
+                      deleteConfirm ? " btn--danger" : ""
                     }`}
                     onClick={() => {
                       if (!deleteConfirm) {
@@ -470,7 +477,7 @@ const DmEncountersPage: NextPage = () => {
               {activeTab === "creatures" && selectedEncounter && (
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn"
                   onClick={() => setShowMonsterSearch(true)}
                 >
                   Add from SRD
@@ -722,13 +729,13 @@ const DmEncountersPage: NextPage = () => {
                                       pathname: "/prototype/dm-roster",
                                       query: { entityId: npc.id },
                                     }}
-                                    className="btn-primary"
+                                    className="btn"
                                   >
                                     Roster
                                   </Link>
                                   <button
                                     type="button"
-                                    className="btn-primary"
+                                    className="btn"
                                     onClick={() =>
                                       handleRemoveNpcFromEncounter(npc.id)
                                     }
@@ -758,7 +765,7 @@ const DmEncountersPage: NextPage = () => {
                 <h3>SRD Monsters</h3>
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn"
                   onClick={() => setShowMonsterSearch(false)}
                 >
                   Close

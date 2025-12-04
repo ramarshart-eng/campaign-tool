@@ -1,6 +1,7 @@
 ﻿import React from "react";
 import Link from "next/link";
 import { useDmContext } from "@/lib/context/DmContext";
+import { useWorkingSession } from "@/lib/hooks/useWorkingSession";
 
 export type DmPageId =
   | "hub"
@@ -41,7 +42,11 @@ const DmNav: React.FC<DmNavProps> = ({ active, sceneTitle }) => {
     arcsForCurrent,
     sessionsForCurrent,
     beatsForCurrent,
+    notesForCurrent,
+    setCurrentSessionId,
   } = useDmContext();
+
+  const { buildUrl, setWorkingSession } = useWorkingSession();
 
   const campaignStats = React.useMemo(() => {
     if (!currentCampaign) return null;
@@ -57,48 +62,76 @@ const DmNav: React.FC<DmNavProps> = ({ active, sceneTitle }) => {
     beatsForCurrent.length,
   ]);
 
+  // Find scene note title if we have a sceneId in URL
+  const resolvedSceneTitle = React.useMemo(() => {
+    if (sceneTitle) return sceneTitle;
+    return null;
+  }, [sceneTitle]);
+
+  // Breadcrumb click handlers
+  const handleCampaignClick = React.useCallback(() => {
+    // Clear session and scene focus, go to hub
+    setWorkingSession({ sessionId: undefined, sceneId: undefined, encounterId: undefined });
+  }, [setWorkingSession]);
+
+  const handleSessionClick = React.useCallback(() => {
+    // Clear scene focus but keep session
+    setWorkingSession({ sceneId: undefined, encounterId: undefined });
+  }, [setWorkingSession]);
+
   return (
     <nav className="dm-nav">
-      <div className="dm-nav__side dm-nav__side--left">
-        <div className="dm-nav__context-group">
-          <span className="dm-nav__context-label">Campaign</span>
-          <div className="dm-nav__context-value-row">
-            <span className="dm-nav__context-value">
-              {currentCampaign?.name ?? "None selected"}
+      {/* Compact breadcrumb on left */}
+      <div className="dm-nav__context">
+        <button
+          className="dm-nav__crumb"
+          onClick={handleCampaignClick}
+          title="Go to campaign overview"
+        >
+          {currentCampaign?.name ?? "No Campaign"}
+        </button>
+        {currentSession && (
+          <>
+            <span className="dm-nav__sep">›</span>
+            <button
+              className="dm-nav__crumb"
+              onClick={handleSessionClick}
+              title="Go to session overview"
+            >
+              {currentSession.name}
+            </button>
+          </>
+        )}
+        {resolvedSceneTitle && (
+          <>
+            <span className="dm-nav__sep">›</span>
+            <span className="dm-nav__crumb dm-nav__crumb--static">
+              {resolvedSceneTitle}
             </span>
-            {campaignStats ? (
-              <span className="dm-nav__context-stats">
-                Arcs {campaignStats.arcs} | Sessions {campaignStats.sessions} | Beats {campaignStats.beats}
-              </span>
-            ) : null}
-          </div>
-        </div>
+          </>
+        )}
+        {campaignStats && (
+          <span className="dm-nav__stats">
+            {campaignStats.arcs} arcs · {campaignStats.sessions} sessions · {campaignStats.beats} beats
+          </span>
+        )}
       </div>
-      <div className="dm-nav__inner">
+
+      {/* Centered nav links */}
+      <div className="dm-nav__links">
         {navItems.map((item) => (
           <Link
             key={item.id}
             className={`dm-nav__link${item.id === active ? " is-active" : ""}`}
-            href={item.href}
+            href={buildUrl(item.href)}
           >
             {item.label}
           </Link>
         ))}
       </div>
-      <div className="dm-nav__side dm-nav__side--right">
-        <div className="dm-nav__context-group">
-          <span className="dm-nav__context-label">Session</span>
-          <span className="dm-nav__context-value">
-            {currentSession?.name ?? "None selected"}
-          </span>
-        </div>
-        <div className="dm-nav__context-group">
-          <span className="dm-nav__context-label">Scene</span>
-          <span className="dm-nav__context-value">
-            {sceneTitle ?? "Not focused"}
-          </span>
-        </div>
-      </div>
+
+      {/* Spacer for centering */}
+      <div className="dm-nav__spacer" />
     </nav>
   );
 };

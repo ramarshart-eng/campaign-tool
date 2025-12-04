@@ -88,7 +88,7 @@ export type RectangleBrush = {
 export type BrushDefinition = RectangleBrush;
 export type ResolvedTile = {
   src: string;
-  rotationIndex: number;
+  rotationIndex?: number;
   autoRotate?: boolean;
 };
 export type ResolvedBrushDefinition = BrushDefinition & {
@@ -489,7 +489,6 @@ export const loadBattlemapBrushesFromDisk = (): BrushLoaderResult => {
             ...(merged as BrushDefinition),
             brushId:
               merged.brushId ??
-              merged.toolId ??
               merged.useTool ??
               brush.brushId ??
               "brush",
@@ -641,7 +640,7 @@ export const loadBattlemapBrushesFromDisk = (): BrushLoaderResult => {
                 );
                 return `/${rel.replace(/\\\\/g, "/").replace(/\\/g, "/")}`;
               })
-              .filter(Boolean) ?? [];
+              .filter((v): v is string => !!v) ?? [];
 
           const fallbackCorner =
             cornerIds.length > 0 ? resolveById(cornerIds[0]) : undefined;
@@ -711,42 +710,42 @@ export const loadBattlemapBrushesFromDisk = (): BrushLoaderResult => {
                 tl:
                   resolveTile(
                     toTileSpec(
-                      paletteMap.get(
+                      (paletteMap.get(
                         cornerPaletteRefs[0]?.toLowerCase() ?? ""
-                      )?.[0]
+                      ) ?? [])[0]
                     ),
                     targetTilesetTiles
                   ) ?? resolveById(cornerIds[0]),
                 tr:
                   resolveTile(
                     toTileSpec(
-                      paletteMap.get(
+                      (paletteMap.get(
                         cornerPaletteRefs[1]?.toLowerCase() ??
                           cornerPaletteRefs[0]?.toLowerCase() ??
                           ""
-                      )?.[0]
+                      ) ?? [])[0]
                     ),
                     targetTilesetTiles
                   ) ?? resolveById(cornerIds[0]),
                 bl:
                   resolveTile(
                     toTileSpec(
-                      paletteMap.get(
+                      (paletteMap.get(
                         cornerPaletteRefs[2]?.toLowerCase() ??
                           cornerPaletteRefs[0]?.toLowerCase() ??
                           ""
-                      )?.[0]
+                      ) ?? [])[0]
                     ),
                     targetTilesetTiles
                   ) ?? resolveById(cornerIds[0]),
                 br:
                   resolveTile(
                     toTileSpec(
-                      paletteMap.get(
+                      (paletteMap.get(
                         cornerPaletteRefs[3]?.toLowerCase() ??
                           cornerPaletteRefs[0]?.toLowerCase() ??
                           ""
-                      )?.[0]
+                      ) ?? [])[0]
                     ),
                     targetTilesetTiles
                   ) ?? resolveById(cornerIds[0]),

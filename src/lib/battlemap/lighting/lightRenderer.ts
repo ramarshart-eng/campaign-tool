@@ -1,19 +1,30 @@
 /**
- * Light Renderer
+ * Light Renderer (Segment-Based)
  * High-level API for rendering ray-traced lighting on the battlemap
+ * using contour-traced occluder segments for accurate, fast shadow casting.
  */
 
 import type { PlacedTile } from "@/lib/battlemap/tileEffects";
 import {
   isTileUnlit,
-  enrichTileWithMetadata,
   getTileLightProperties,
+  enrichTileWithMetadata,
 } from "@/lib/battlemap/tileEffects";
 import { hasTileEffect } from "@/lib/battlemap/tileMetadata";
-import { buildOccluderGrid, type OccluderGrid } from "./occluderGrid";
-import { generateVisibilityPolygon } from "./rayCasting";
-import { generateLightTintMap } from "./shadowMap";
+import { buildOccluderSegments, type OccluderData } from "./occluderSegments";
+import { generateVisibilityPolygonFromSegments } from "./raySegmentIntersection";
 import type { WorldToScreenFunc } from "./shadowMap";
+
+/**
+ * Get the size of a tile in cells from its filename
+ */
+function getTileSizeCells(src: string): { w: number; h: number } {
+  const match = src.match(/_(\d+)X(\d+)_/i);
+  if (match) {
+    return { w: parseInt(match[1], 10), h: parseInt(match[2], 10) };
+  }
+  return { w: 1, h: 1 };
+}
 
 export type LightingConfig = {
   /** Base darkness opacity (0-1) */
@@ -24,10 +35,14 @@ export type LightingConfig = {
   lightIntensity: number;
   /** Default light color (hex) */
   lightColor: string;
-  /** Resolution of occluder grid (samples per cell) */
-  occluderResolution: number;
-  /** Number of rays per light source */
-  rayCount: number;
+  /** Alpha threshold for contour detection (0-255) */
+  alphaThreshold: number;
+  /** Contour simplification tolerance (in cells) */
+  simplifyEpsilon: number;
+  /** Minimum rays for visibility polygon */
+  minRays: number;
+  /** Maximum rays for visibility polygon */
+  maxRays: number;
   /** Whether to apply warm color tint */
   applyColorTint: boolean;
 };
@@ -37,10 +52,169 @@ const DEFAULT_CONFIG: LightingConfig = {
   lightRadius: 4,
   lightIntensity: 1,
   lightColor: "#e1be7a",
-  occluderResolution: 8,
-  rayCount: 1440,
+  alphaThreshold: 128,
+  simplifyEpsilon: 0.02,
+  minRays: 540,
+  maxRays: 1080,
   applyColorTint: false,
 };
+
+const TILE_SIZE_REGEX = /_(\d+)X(\d+)_/i;
+
+let cachedOccluders: OccluderData | null = null;
+let cachedOccluderSignature: string | null = null;
+type MaskCache = {
+  signature: string;
+  width: number;
+  height: number;
+  cameraKey: string;
+  canvas: HTMLCanvasElement;
+};
+let cachedOccluderMask: MaskCache | null = null;
+let reusableLightCanvas: HTMLCanvasElement | null = null;
+let reusableColorCanvas: HTMLCanvasElement | null = null;
+
+function getTileSizeCellsFromSrc(src: string): { w: number; h: number } {
+  const match = src.match(TILE_SIZE_REGEX);
+  if (match) {
+    return { w: parseInt(match[1], 10), h: parseInt(match[2], 10) };
+  }
+  return { w: 1, h: 1 };
+}
+
+function getTileFootprintInCells(tile: PlacedTile): { w: number; h: number } {
+  const base = getTileSizeCellsFromSrc(tile.src);
+  return (tile.rotationIndex ?? 0) % 2 === 0 ? base : { w: base.h, h: base.w };
+}
+
+function computeTileCenterCells(
+  tile: PlacedTile,
+  footprint: { w: number; h: number }
+): { x: number; y: number } {
+  return {
+    x:
+      typeof tile.centerX === "number"
+        ? tile.centerX
+        : tile.cellX + footprint.w / 2,
+    y:
+      typeof tile.centerY === "number"
+        ? tile.centerY
+        : tile.cellY + footprint.h / 2,
+  };
+}
+
+function formatNumber(value: number | undefined, fractionDigits = 4): string {
+  return typeof value === "number" ? value.toFixed(fractionDigits) : "";
+}
+
+function computeOccluderSignature(tiles: PlacedTile[]): string {
+  const entries = tiles.map((tile) => {
+    const footprint = getTileFootprintInCells(tile);
+    const center = computeTileCenterCells(tile, footprint);
+    return [
+      tile.src,
+      tile.cellX,
+      tile.cellY,
+      formatNumber(center.x),
+      formatNumber(center.y),
+      tile.rotationIndex ?? 0,
+      tile.mirrorX ? 1 : 0,
+      tile.mirrorY ? 1 : 0,
+      formatNumber(tile.scale ?? 1, 3),
+    ].join(":");
+  });
+  entries.sort();
+  return entries.join("|");
+}
+
+function acquireCanvas(
+  existing: HTMLCanvasElement | null,
+  width: number,
+  height: number
+): HTMLCanvasElement {
+  const canvas = existing ?? document.createElement("canvas");
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  return canvas;
+}
+
+function getOccluderMaskCanvas(
+  signature: string,
+  width: number,
+  height: number,
+  tiles: PlacedTile[],
+  imageCache: Map<string, HTMLImageElement>,
+  cellSize: number,
+  gridOrigin: number,
+  worldToScreen: WorldToScreenFunc,
+  camera?: { panX: number; panY: number; zoom: number }
+): HTMLCanvasElement | null {
+  if (!camera || tiles.length === 0) {
+    return null;
+  }
+
+  const cameraKey = `${camera.panX.toFixed(2)}:${camera.panY.toFixed(
+    2
+  )}:${camera.zoom.toFixed(4)}`;
+
+  const needsRebuild =
+    !cachedOccluderMask ||
+    cachedOccluderMask.signature !== signature ||
+    cachedOccluderMask.width !== width ||
+    cachedOccluderMask.height !== height ||
+    cachedOccluderMask.cameraKey !== cameraKey;
+
+  if (!needsRebuild) {
+    return cachedOccluderMask!.canvas;
+  }
+
+  const canvas = acquireCanvas(
+    cachedOccluderMask?.canvas ?? null,
+    width,
+    height
+  );
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return null;
+  }
+  ctx.clearRect(0, 0, width, height);
+
+  for (const tile of tiles) {
+    const img = imageCache.get(tile.src);
+    if (!img || !img.complete || img.width === 0 || img.height === 0) {
+      continue;
+    }
+
+    const footprint = getTileFootprintInCells(tile);
+    const center = computeTileCenterCells(tile, footprint);
+    const tileWorldX = center.x * cellSize + gridOrigin;
+    const tileWorldY = center.y * cellSize + gridOrigin;
+    const tileScreen = worldToScreen(tileWorldX, tileWorldY);
+
+    const tileScale = tile.scale ?? 1;
+    const drawWidth = img.width * camera.zoom * tileScale;
+    const drawHeight = img.height * camera.zoom * tileScale;
+
+    ctx.save();
+    ctx.translate(tileScreen.x, tileScreen.y);
+    ctx.rotate(((tile.rotationIndex ?? 0) * Math.PI) / 2);
+    ctx.scale(tile.mirrorX ? -1 : 1, tile.mirrorY ? -1 : 1);
+    ctx.drawImage(img, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+    ctx.restore();
+  }
+
+  cachedOccluderMask = {
+    signature,
+    width,
+    height,
+    cameraKey,
+    canvas,
+  };
+
+  return canvas;
+}
 
 /**
  * Helper: Convert hex color to RGB
@@ -84,30 +258,49 @@ export async function renderRayTracedLighting(
   shadingImg?: HTMLImageElement,
   camera?: { panX: number; panY: number; zoom: number }
 ): Promise<void> {
-  console.log("🔦 [LIGHTING] renderRayTracedLighting called", {
-    placedTiles: placedTiles.length,
-    lightingTiles: lightingTiles.length,
-    config,
-  });
-
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  // Ensure requested tint color matches spec
   cfg.lightColor = config.lightColor ?? "#e1be7a";
 
-  // Build occluder grid from all tiles with collision
-  const occluderGrid = await buildOccluderGrid(
-    placedTiles,
-    imageCache,
-    cfg.occluderResolution
-  );
-
-  // Debug: Log occluder grid size
-  console.log("[Lighting] Occluder grid built:", {
-    totalOccluders: occluderGrid.data.size,
-    resolution: occluderGrid.resolution,
-    totalTiles: placedTiles.length,
-    lightingTiles: lightingTiles.length,
+  const occluderTiles = placedTiles.filter((tile) => {
+    const enriched = enrichTileWithMetadata(tile);
+    return enriched && hasTileEffect(enriched.metadata, "collision");
   });
+
+  const occluderSignature = computeOccluderSignature(occluderTiles);
+
+  if (!cachedOccluders || cachedOccluderSignature !== occluderSignature) {
+    const buildStart = performance.now();
+    cachedOccluders = buildOccluderSegments(
+      occluderTiles,
+      imageCache,
+      cellSize,
+      cfg.alphaThreshold,
+      cfg.simplifyEpsilon
+    );
+    cachedOccluderSignature = occluderSignature;
+    console.log(
+      `[Lighting] Built ${
+        cachedOccluders.segments.length
+      } occluder segments in ${(performance.now() - buildStart).toFixed(1)}ms`
+    );
+  }
+
+  const occluders = cachedOccluders!;
+
+  // Initialize polygon cache for reuse across light sources
+  const polygonCache = new Map<string, Array<{ x: number; y: number }>>();
+
+  const occluderMask = getOccluderMaskCanvas(
+    occluderSignature,
+    width,
+    height,
+    occluderTiles,
+    imageCache,
+    cellSize,
+    gridOrigin,
+    worldToScreen,
+    camera
+  );
 
   // Create darkness canvas
   const darknessCanvas = document.createElement("canvas");
@@ -116,7 +309,7 @@ export async function renderRayTracedLighting(
   const darkCtx = darknessCanvas.getContext("2d");
   if (!darkCtx) return;
 
-  // Draw base darkness as solid black (no shading texture)
+  // Draw base darkness
   darkCtx.clearRect(0, 0, width, height);
   darkCtx.globalAlpha = cfg.darknessOpacity;
   darkCtx.fillStyle = "#000000";
@@ -128,79 +321,62 @@ export async function renderRayTracedLighting(
     darkCtx.globalCompositeOperation = "destination-out";
 
     for (const lightTile of lightingTiles) {
-      const lightCenterX = lightTile.cellX + 0.5; // Assume 1x1 tiles for now
+      const lightCenterX = lightTile.cellX + 0.5;
       const lightCenterY = lightTile.cellY + 0.5;
 
       // Get light properties from tile metadata
       const lightProps = getTileLightProperties(lightTile);
       const lightColor = lightProps?.color ?? cfg.lightColor;
+      const lightRadius = cfg.lightRadius;
 
-      // Dynamic radius based on light tile alpha coverage (opaque area reduces radius)
-      let lightRadius = cfg.lightRadius * (lightTile.scale ?? 1);
-      const lightImg = imageCache.get(lightTile.src);
-      if (
-        lightImg &&
-        lightImg.complete &&
-        lightImg.width > 0 &&
-        lightImg.height > 0
-      ) {
-        try {
-          const sampleCanvas = document.createElement("canvas");
-          const sW = Math.min(128, lightImg.width);
-          const sH = Math.min(128, lightImg.height);
-          sampleCanvas.width = sW;
-          sampleCanvas.height = sH;
-          const sCtx = sampleCanvas.getContext("2d");
-          if (sCtx) {
-            sCtx.drawImage(lightImg, 0, 0, sW, sH);
-            const imgData = sCtx.getImageData(0, 0, sW, sH).data;
-            let opaque = 0;
-            const total = sW * sH;
-            for (let i = 0; i < imgData.length; i += 4) {
-              const a = imgData[i + 3];
-              if (a > 200) opaque++;
-            }
-            const opaqueRatio = opaque / total; // 0..1
-            // Heuristic: more opaque area => smaller radius; clamp within [0.6, 1.4]
-            const scaleFactor = 0.6 + 0.8 * opaqueRatio;
-            lightRadius = Math.max(
-              0.5,
-              cfg.lightRadius * (lightTile.scale ?? 1) * scaleFactor
-            );
-          }
-        } catch {}
+      // Debug: log light position for first light
+      if (lightTile === lightingTiles[0]) {
+        console.log("[Lighting] First light:", {
+          cellX: lightTile.cellX,
+          cellY: lightTile.cellY,
+          centerInCells: { x: lightCenterX, y: lightCenterY },
+          radius: lightRadius,
+          numSegments: occluders.segments.length,
+          bounds: occluders.bounds,
+        });
       }
 
-      // Convert light center from cells to world coordinates
+      // Convert light center to screen coordinates
       const lightWorldX = lightCenterX * cellSize + gridOrigin;
       const lightWorldY = lightCenterY * cellSize + gridOrigin;
       const lightScreen = worldToScreen(lightWorldX, lightWorldY);
 
-      // Generate visibility polygon in cell space
-      const vertices = generateVisibilityPolygon(
-        lightCenterX,
-        lightCenterY,
-        lightRadius,
-        occluderGrid,
-        cfg.rayCount
-      );
+      // Generate visibility polygon (cached by position + radius)
+      const cacheKey = `${lightCenterX.toFixed(2)},${lightCenterY.toFixed(
+        2
+      )},${lightRadius.toFixed(2)},${occluders.version}`;
+      let vertices = polygonCache.get(cacheKey);
 
-      console.log("[Lighting] Drawing light:", {
-        cellPos: { x: lightCenterX, y: lightCenterY },
-        screenPos: { x: lightScreen.x, y: lightScreen.y },
-        radius: lightRadius,
-        vertices: vertices.length,
-      });
+      if (!vertices) {
+        const startTime = performance.now();
+        vertices = generateVisibilityPolygonFromSegments(
+          lightCenterX,
+          lightCenterY,
+          lightRadius,
+          occluders.segments,
+          cfg.minRays,
+          cfg.maxRays
+        );
+        polygonCache.set(cacheKey, vertices);
+        console.log(
+          `[Lighting] Generated visibility polygon with ${
+            vertices.length
+          } vertices in ${(performance.now() - startTime).toFixed(1)}ms`
+        );
+      }
 
-      // Create a temporary canvas for this light with clip path
-      const lightCanvas = document.createElement("canvas");
-      lightCanvas.width = width;
-      lightCanvas.height = height;
-      const lightCtx = lightCanvas.getContext("2d");
+      // Create temporary canvas for this light
+      reusableLightCanvas = acquireCanvas(reusableLightCanvas, width, height);
+      const lightCtx = reusableLightCanvas.getContext("2d");
       if (!lightCtx) continue;
+      lightCtx.clearRect(0, 0, width, height);
 
-      // Set up clipping path from visibility polygon (raycast result)
-      // Limit only the gradient fill to the clipped region; remove clip before masking
+      // Set up clipping path from visibility polygon
       lightCtx.save();
       lightCtx.beginPath();
       for (let i = 0; i < vertices.length; i++) {
@@ -218,7 +394,7 @@ export async function renderRayTracedLighting(
       lightCtx.closePath();
       lightCtx.clip();
 
-      // Draw radial gradient within the clipped region
+      // Draw radial gradient within clipped region
       const lightRadiusPx = lightRadius * cellSize * camera.zoom;
       const gradient = lightCtx.createRadialGradient(
         lightScreen.x,
@@ -229,7 +405,6 @@ export async function renderRayTracedLighting(
         lightRadiusPx
       );
 
-      // Convert light color to RGB for gradient
       const rgb = hexToRgb(lightColor);
       gradient.addColorStop(
         0,
@@ -243,113 +418,16 @@ export async function renderRayTracedLighting(
 
       lightCtx.fillStyle = gradient;
       lightCtx.fillRect(0, 0, width, height);
-
-      // Remove clip before applying tile alpha masking
       lightCtx.restore();
 
-      // Avoid blurring alpha edges when masking
-      lightCtx.imageSmoothingEnabled = false;
-
-      // Additionally mask with tile alpha to refine shadow edges
-      // We need to darken the light where tiles have alpha, using the alpha as a mask
-
-      // Find all blocking tiles within light radius
-      const lightRadiusCells = lightRadius * 1.5;
-      const minTileX = Math.floor(lightCenterX - lightRadiusCells);
-      const maxTileX = Math.ceil(lightCenterX + lightRadiusCells);
-      const minTileY = Math.floor(lightCenterY - lightRadiusCells);
-      const maxTileY = Math.ceil(lightCenterY + lightRadiusCells);
-
-      for (const tile of placedTiles) {
-        if (
-          tile.cellX < minTileX ||
-          tile.cellX > maxTileX ||
-          tile.cellY < minTileY ||
-          tile.cellY > maxTileY
-        ) {
-          continue;
-        }
-
-        const enriched = enrichTileWithMetadata(tile);
-        if (!enriched || !hasTileEffect(enriched.metadata, "collision")) {
-          continue;
-        }
-
-        const img = imageCache.get(tile.src);
-        if (!img || !img.complete || img.width === 0) continue;
-
-        // Get tile position in world space
-        // Render mask in screen space using worldToScreen center
-        lightCtx.save();
-
-        // Mirror BattlemapCanvas placement: center image on grid footprint center, using native PNG dimensions
-        const nameMatch = tile.src
-          .split("/")
-          .pop()
-          ?.match(/_(\d+)x(\d+)/i);
-        const baseW = nameMatch ? parseInt(nameMatch[1], 10) : 1;
-        const baseH = nameMatch ? parseInt(nameMatch[2], 10) : 1;
-        const rotationIndex = tile.rotationIndex ?? 0;
-        const footprintW = rotationIndex % 2 === 0 ? baseW : baseH;
-        const footprintH = rotationIndex % 2 === 0 ? baseH : baseW;
-        const imgNativeW = Math.max(1, img.width || 0);
-        const imgNativeH = Math.max(1, img.height || 0);
-        const scale = tile.scale ?? 1;
-        const tileWidthPx = imgNativeW * (camera?.zoom ?? 1) * scale;
-        const tileHeightPx = imgNativeH * (camera?.zoom ?? 1) * scale;
-
-        // Move to tile center and apply transforms
-        // Compute screen-space center based on footprint center
-        const centerCellX =
-          typeof (tile as any).centerX === "number"
-            ? (tile as any).centerX
-            : tile.cellX + footprintW / 2;
-        const centerCellY =
-          typeof (tile as any).centerY === "number"
-            ? (tile as any).centerY
-            : tile.cellY + footprintH / 2;
-        const worldCenterX = gridOrigin + centerCellX * cellSize;
-        const worldCenterY = gridOrigin + centerCellY * cellSize;
-        // Translate to screen-space center
-        const screenCenter = worldToScreen(worldCenterX, worldCenterY);
-        lightCtx.translate(
-          Math.round(screenCenter.x),
-          Math.round(screenCenter.y)
-        );
-
-        if (rotationIndex) {
-          lightCtx.rotate((rotationIndex * Math.PI) / 2);
-        }
-
-        if (tile.mirrorX) lightCtx.scale(-1, 1);
-        if (tile.mirrorY) lightCtx.scale(1, -1);
-
-        // Use destination-out to remove light where the tile is opaque
+      if (occluderMask) {
         lightCtx.globalCompositeOperation = "destination-out";
-        // First pass: exact alpha mask
-        lightCtx.drawImage(
-          img,
-          -tileWidthPx / 2,
-          -tileHeightPx / 2,
-          tileWidthPx,
-          tileHeightPx
-        );
-        // Second pass: slight 1px dilation to eat residual fringes
-        lightCtx.drawImage(
-          img,
-          -tileWidthPx / 2 - 1,
-          -tileHeightPx / 2 - 1,
-          tileWidthPx + 2,
-          tileHeightPx + 2
-        );
-
-        lightCtx.restore();
+        lightCtx.drawImage(occluderMask, 0, 0);
+        lightCtx.globalCompositeOperation = "source-over";
       }
 
-      lightCtx.globalCompositeOperation = "source-over";
-
-      // Composite this light onto the darkness canvas (removes darkness)
-      darkCtx.drawImage(lightCanvas, 0, 0);
+      // Composite light onto darkness canvas (erasing darkness)
+      darkCtx.drawImage(reusableLightCanvas, 0, 0);
     }
 
     darkCtx.globalCompositeOperation = "source-over";
@@ -360,76 +438,37 @@ export async function renderRayTracedLighting(
   ctx.drawImage(darknessCanvas, 0, 0);
   ctx.restore();
 
-  // Apply colored light overlays using the same visibility polygons
+  // Apply colored light overlays
   if (lightingTiles.length > 0 && camera) {
     ctx.save();
-    ctx.globalCompositeOperation = "overlay"; // Overlay blend mode for color tinting
+    ctx.globalCompositeOperation = "overlay";
 
     for (const lightTile of lightingTiles) {
       const lightCenterX = lightTile.cellX + 0.5;
       const lightCenterY = lightTile.cellY + 0.5;
 
-      // Get light properties from tile metadata
       const lightProps = getTileLightProperties(lightTile);
       const lightColor = lightProps?.color ?? cfg.lightColor;
-      let lightRadius = cfg.lightRadius * (lightTile.scale ?? 1);
+      const lightRadius = cfg.lightRadius;
 
-      // Apply same radius adjustment as the white light
-      const lightImg = imageCache.get(lightTile.src);
-      if (
-        lightImg &&
-        lightImg.complete &&
-        lightImg.width > 0 &&
-        lightImg.height > 0
-      ) {
-        try {
-          const sampleCanvas = document.createElement("canvas");
-          const sW = Math.min(128, lightImg.width);
-          const sH = Math.min(128, lightImg.height);
-          sampleCanvas.width = sW;
-          sampleCanvas.height = sH;
-          const sCtx = sampleCanvas.getContext("2d");
-          if (sCtx) {
-            sCtx.drawImage(lightImg, 0, 0, sW, sH);
-            const imgData = sCtx.getImageData(0, 0, sW, sH).data;
-            let opaque = 0;
-            const total = sW * sH;
-            for (let i = 0; i < imgData.length; i += 4) {
-              const a = imgData[i + 3];
-              if (a > 200) opaque++;
-            }
-            const opaqueRatio = opaque / total;
-            const scaleFactor = 0.6 + 0.8 * opaqueRatio;
-            lightRadius = Math.max(
-              0.5,
-              cfg.lightRadius * (lightTile.scale ?? 1) * scaleFactor
-            );
-          }
-        } catch {}
-      }
-
-      // Convert light center from cells to world coordinates
       const lightWorldX = lightCenterX * cellSize + gridOrigin;
       const lightWorldY = lightCenterY * cellSize + gridOrigin;
       const lightScreen = worldToScreen(lightWorldX, lightWorldY);
 
-      // Generate the same visibility polygon
-      const vertices = generateVisibilityPolygon(
-        lightCenterX,
-        lightCenterY,
-        lightRadius,
-        occluderGrid,
-        cfg.rayCount
-      );
+      // Reuse cached visibility polygon
+      const cacheKey = `${lightCenterX.toFixed(2)},${lightCenterY.toFixed(
+        2
+      )},${lightRadius.toFixed(2)},${occluders.version}`;
+      const vertices = polygonCache.get(cacheKey);
+      if (!vertices) continue;
 
-      // Create colored light canvas with clipping
-      const colorCanvas = document.createElement("canvas");
-      colorCanvas.width = width;
-      colorCanvas.height = height;
-      const colorCtx = colorCanvas.getContext("2d");
+      // Create colored light canvas
+      reusableColorCanvas = acquireCanvas(reusableColorCanvas, width, height);
+      const colorCtx = reusableColorCanvas.getContext("2d");
       if (!colorCtx) continue;
+      colorCtx.clearRect(0, 0, width, height);
 
-      // Set up the same clipping path
+      // Clip and draw colored gradient
       colorCtx.save();
       colorCtx.beginPath();
       for (let i = 0; i < vertices.length; i++) {
@@ -447,7 +486,6 @@ export async function renderRayTracedLighting(
       colorCtx.closePath();
       colorCtx.clip();
 
-      // Draw colored radial gradient within the clipped region
       const lightRadiusPx = lightRadius * cellSize * camera.zoom;
       const colorGradient = colorCtx.createRadialGradient(
         lightScreen.x,
@@ -458,9 +496,8 @@ export async function renderRayTracedLighting(
         lightRadiusPx
       );
 
-      // Convert light color to RGB
       const rgb = hexToRgb(lightColor);
-      const colorIntensity = cfg.lightIntensity * 0.4; // Reduced for subtle tint
+      const colorIntensity = cfg.lightIntensity * 0.4;
       colorGradient.addColorStop(
         0,
         `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${colorIntensity})`
@@ -475,39 +512,13 @@ export async function renderRayTracedLighting(
       colorCtx.fillRect(0, 0, width, height);
       colorCtx.restore();
 
-      // Composite the colored light onto main canvas
-      ctx.drawImage(colorCanvas, 0, 0);
-    }
+      if (occluderMask) {
+        colorCtx.globalCompositeOperation = "destination-out";
+        colorCtx.drawImage(occluderMask, 0, 0);
+        colorCtx.globalCompositeOperation = "source-over";
+      }
 
-    ctx.restore();
-  }
-
-  // Legacy color tint overlay (kept for backward compatibility)
-  if (cfg.applyColorTint && lightingTiles.length > 0 && camera) {
-    ctx.save();
-    ctx.globalCompositeOperation = "overlay";
-
-    for (const lightTile of lightingTiles) {
-      const lightCenterX = lightTile.cellX + 0.5;
-      const lightCenterY = lightTile.cellY + 0.5;
-
-      const tintMap = generateLightTintMap(
-        lightCenterX,
-        lightCenterY,
-        cfg.lightRadius * (lightTile.scale ?? 1),
-        cfg.lightIntensity,
-        cfg.lightColor,
-        occluderGrid,
-        width,
-        height,
-        cellSize,
-        gridOrigin,
-        worldToScreen,
-        camera,
-        cfg.rayCount
-      );
-
-      ctx.drawImage(tintMap, 0, 0);
+      ctx.drawImage(reusableColorCanvas, 0, 0);
     }
 
     ctx.restore();
@@ -515,55 +526,17 @@ export async function renderRayTracedLighting(
 }
 
 /**
- * Helper: Render tiled shading texture
+ * Invalidate cached occluders (call when tiles change)
+ * Note: Currently not using caching, segments are rebuilt each frame
  */
-function renderTiledShading(
-  ctx: CanvasRenderingContext2D,
-  shadingImg: HTMLImageElement,
-  width: number,
-  height: number,
-  cellSize: number,
-  gridOrigin: number,
-  camera: { panX: number; panY: number; zoom: number }
-): void {
-  const viewLeft = -camera.panX / camera.zoom - gridOrigin;
-  const viewTop = -camera.panY / camera.zoom - gridOrigin;
-  const viewRight = viewLeft + width / camera.zoom;
-  const viewBottom = viewTop + height / camera.zoom;
-
-  const startX = Math.floor(viewLeft / cellSize) - 1;
-  const endX = Math.ceil(viewRight / cellSize) + 1;
-  const startY = Math.floor(viewTop / cellSize) - 1;
-  const endY = Math.ceil(viewBottom / cellSize) + 1;
-
-  for (let tx = startX; tx <= endX; tx++) {
-    for (let ty = startY; ty <= endY; ty++) {
-      const x = tx * cellSize;
-      const y = ty * cellSize;
-      const screenX = (gridOrigin + x) * camera.zoom + camera.panX;
-      const screenY = (gridOrigin + y) * camera.zoom + camera.panY;
-
-      ctx.save();
-      ctx.translate(screenX, screenY);
-      ctx.scale(camera.zoom, camera.zoom);
-      ctx.drawImage(shadingImg, 0, 0, cellSize, cellSize);
-      ctx.restore();
-    }
-  }
+export function invalidateOccluderCache(): void {
+  cachedOccluders = null;
+  cachedOccluderSignature = null;
+  cachedOccluderMask = null;
 }
 
 /**
  * Create an unlit tile mask (for tiles that should always be dark)
- * This can be used to mask out walls so they don't receive lighting
- *
- * @param placedTiles - All tiles on the map
- * @param imageCache - Cache of loaded tile images
- * @param width - Canvas width
- * @param height - Canvas height
- * @param cellSize - Cell size in pixels
- * @param gridOrigin - Grid origin offset
- * @param worldToScreen - Coordinate conversion
- * @returns Canvas with unlit tile masks
  */
 export function createUnlitMask(
   placedTiles: PlacedTile[],
@@ -592,7 +565,7 @@ export function createUnlitMask(
     const tileWorldY = (tile.cellY + 0.5) * cellSize + gridOrigin;
     const screen = worldToScreen(tileWorldX, tileWorldY);
 
-    const rectWidth = cellSize; // Assume 1x1 for now
+    const rectWidth = cellSize;
     const rectHeight = cellSize;
 
     ctx.fillRect(

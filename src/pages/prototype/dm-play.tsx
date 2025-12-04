@@ -6,6 +6,7 @@ import DmLayout from "@/lib/components/layout/DmLayout";
 import NoteDocRenderer from "@/lib/components/NoteDocRenderer";
 import EncounterRunPanel from "@/lib/components/EncounterRunPanel";
 import { useDmContext } from "@/lib/context/DmContext";
+import { useWorkingSession } from "@/lib/hooks/useWorkingSession";
 import type { CampaignBeat, EncounterEntity, NpcEntity } from "@/lib/types/dm";
 import {
   SRD_MONSTER_SUMMARIES,
@@ -30,6 +31,7 @@ const formatAbilityModifier = (score: number) => {
 
 const DmPlayPage: NextPage = () => {
   const router = useRouter();
+  const { workingSession, setWorkingSession, buildUrl } = useWorkingSession();
   const {
     currentCampaign,
     currentSession,
@@ -45,23 +47,18 @@ const DmPlayPage: NextPage = () => {
     addSrdMonsterToEncounter,
   } = useDmContext();
 
-  const querySessionId =
-    typeof router.query.sessionId === "string" ? router.query.sessionId : null;
-  const querySceneId =
-    typeof router.query.sceneId === "string" ? router.query.sceneId : null;
-
   const [focusedSessionId, setFocusedSessionId] = React.useState<string | null>(
     () =>
-      querySessionId ??
+      workingSession.sessionId ??
       currentSession?.id ??
       sessionsForCurrent[0]?.id ??
       null
   );
   React.useEffect(() => {
-    if (querySessionId && querySessionId !== focusedSessionId) {
-      setFocusedSessionId(querySessionId);
+    if (workingSession.sessionId && workingSession.sessionId !== focusedSessionId) {
+      setFocusedSessionId(workingSession.sessionId);
     }
-  }, [querySessionId]);
+  }, [workingSession.sessionId]);
 
   const focusedSession =
     sessionsForCurrent.find((session) => session.id === focusedSessionId) ??
@@ -81,8 +78,8 @@ const DmPlayPage: NextPage = () => {
   }, [npcsForCurrent]);
 
   const [activeSceneId, setActiveSceneId] = React.useState<string | null>(() => {
-    if (querySceneId && sceneNotesForSession.some((scene) => scene.id === querySceneId)) {
-      return querySceneId;
+    if (workingSession.sceneId && sceneNotesForSession.some((scene) => scene.id === workingSession.sceneId)) {
+      return workingSession.sceneId;
     }
     return sceneNotesForSession[0]?.id ?? null;
   });
@@ -178,11 +175,17 @@ const DmPlayPage: NextPage = () => {
 
   const handleChooseSession = (sessionId: string) => {
     setFocusedSessionId(sessionId);
+    setWorkingSession({ sessionId, sceneId: undefined, encounterId: undefined });
     const firstScene = notesForCurrent.find(
       (note) => note.scopeType === "scene" && note.scopeId === sessionId
     );
     setActiveSceneId(firstScene?.id ?? null);
     setRunEncounterId(null);
+  };
+
+  const handleSelectScene = (sceneId: string) => {
+    setActiveSceneId(sceneId);
+    setWorkingSession({ sceneId });
   };
 
   const handleRunEncounter = (encounterId: string) => {
@@ -344,7 +347,7 @@ const DmPlayPage: NextPage = () => {
                       className={`dm-play__scene${
                         scene.id === activeSceneId ? " is-active" : ""
                       }`}
-                      onClick={() => setActiveSceneId(scene.id)}
+                      onClick={() => handleSelectScene(scene.id)}
                     >
                       {sceneHeader(scene)}
                       {encountersByScene.get(scene.id)?.length ? (
@@ -352,7 +355,7 @@ const DmPlayPage: NextPage = () => {
                           {encountersByScene.get(scene.id)!.map((encounter) => (
                             <Link
                               key={encounter.id}
-                              href={`/prototype/dm-encounters?encounterId=${encounter.id}`}
+                              href={buildUrl("/prototype/dm-encounters", { encounterId: encounter.id })}
                               className="session-planner__scene-encounter-chip"
                             >
                               {encounter.name}
@@ -389,7 +392,7 @@ const DmPlayPage: NextPage = () => {
                         <strong>{beat.title}</strong>
                         {beat.noteId && (
                           <Link
-                            href={`/prototype/dm-notes?noteId=${beat.noteId}`}
+                            href={buildUrl(`/prototype/dm-notes`, { noteId: beat.noteId })}
                             className="dm-play__beat-link"
                           >
                             Open note
@@ -414,8 +417,8 @@ const DmPlayPage: NextPage = () => {
                     </small>
                   </div>
                   <Link
-                    className="btn-primary"
-                    href={`/prototype/dm-notes?noteId=${activeScene.id}`}
+                    className="btn"
+                    href={buildUrl("/prototype/dm-notes", { noteId: activeScene.id })}
                   >
                     Edit in Notes Book
                   </Link>
@@ -443,8 +446,8 @@ const DmPlayPage: NextPage = () => {
                 )}
                 <div className="dm-play__scene-links">
                   <Link
-                    href={`/prototype/dm-session-planner`}
-                    className="btn-primary"
+                    href={buildUrl("/prototype/dm-session-planner")}
+                    className="btn"
                   >
                     Open Session Planner
                   </Link>
@@ -470,12 +473,12 @@ const DmPlayPage: NextPage = () => {
               <div className="dm-play__encounter-header-actions">
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn btn--primary"
                   onClick={() => setEncounterPickerOpen(true)}
                 >
                   Choose encounter
                 </button>
-                <Link className="btn-primary" href="/prototype/dm-encounters">
+                <Link className="btn" href={buildUrl("/prototype/dm-encounters")}>
                   Open Designer
                 </Link>
               </div>
@@ -496,7 +499,7 @@ const DmPlayPage: NextPage = () => {
                 <h4>SRD Quick Reference</h4>
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn btn--sm"
                   onClick={() => setShowSrdReference((prev) => !prev)}
                 >
                   {showSrdReference ? "Hide" : "Show"}
@@ -505,11 +508,11 @@ const DmPlayPage: NextPage = () => {
               {showSrdReference && (
                 <>
                   <div className="dm-play__srd-search">
-                    <label className="field-label">
+                    <label className="label">
                       SRD search
                       <input
                         type="search"
-                        className="field-input field-input--compact"
+                        className="input input--sm"
                         value={srdQuery}
                         onChange={(event) => setSrdQuery(event.target.value)}
                         placeholder="Search monsters by name, CR, or type"
@@ -561,7 +564,7 @@ const DmPlayPage: NextPage = () => {
                           <div className="dm-play__srd-add">
                             <button
                               type="button"
-                              className="btn-primary"
+                              className="btn btn--primary btn--full"
                               disabled={!runEncounter}
                               onClick={handleAddSelectedMonsterToEncounter}
                             >
@@ -677,12 +680,12 @@ const DmPlayPage: NextPage = () => {
               Delete <strong>{encounterDeleteModal.encounter.name}</strong>? This action cannot be undone.
             </p>
             <div className="modal__actions">
-              <button type="button" onClick={handleCloseEncounterDelete}>
+              <button type="button" className="btn" onClick={handleCloseEncounterDelete}>
                 Cancel
               </button>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn btn--danger"
                 onClick={handleConfirmEncounterDelete}
               >
                 Delete Encounter
@@ -726,7 +729,7 @@ const DmPlayPage: NextPage = () => {
                             <div className="dm-play__encounter-actions">
                               <button
                                 type="button"
-                                className="btn-primary"
+                                className="btn btn--primary btn--sm"
                                 onClick={() => {
                                   handleRunEncounter(encounter.id);
                                   setEncounterPickerOpen(false);
@@ -735,14 +738,14 @@ const DmPlayPage: NextPage = () => {
                                 Run
                               </button>
                               <Link
-                                className="btn-primary"
-                                href={`/prototype/dm-encounters?encounterId=${encounter.id}`}
+                                className="btn btn--sm"
+                                href={buildUrl("/prototype/dm-encounters", { encounterId: encounter.id })}
                               >
                                 Open
                               </Link>
                               <button
                                 type="button"
-                                className="btn-primary"
+                                className="btn btn--danger btn--sm"
                                 onClick={() => {
                                   handleOpenEncounterDelete(encounter);
                                   setEncounterPickerOpen(false);

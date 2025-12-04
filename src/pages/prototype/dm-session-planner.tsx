@@ -1,9 +1,10 @@
-﻿
+
 import React from "react";
 import type { NextPage } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useDmContext } from "@/lib/context/DmContext";
+import { useWorkingSession } from "@/lib/hooks/useWorkingSession";
 import NoteDocRenderer from "@/lib/components/NoteDocRenderer";
 import DmLayout from "@/lib/components/layout/DmLayout";
 import type { CampaignBeat, EncounterEntity, NpcEntity } from "@/lib/types/dm";
@@ -21,10 +22,7 @@ const sceneCategories = [
 
 const DmSessionPlannerPage: NextPage = () => {
   const router = useRouter();
-  const querySessionId =
-    typeof router.query.sessionId === "string" ? router.query.sessionId : null;
-  const querySceneId =
-    typeof router.query.sceneId === "string" ? router.query.sceneId : null;
+  const { workingSession, setWorkingSession, buildUrl } = useWorkingSession();
   const {
     currentCampaign,
     currentSession,
@@ -44,10 +42,10 @@ const DmSessionPlannerPage: NextPage = () => {
   } = useDmContext();
 
   React.useEffect(() => {
-    if (querySessionId) {
-      setCurrentSessionId(querySessionId);
+    if (workingSession.sessionId) {
+      setCurrentSessionId(workingSession.sessionId);
     }
-  }, [querySessionId, setCurrentSessionId]);
+  }, [workingSession.sessionId, setCurrentSessionId]);
 
   const sessionId = currentSession?.id ?? null;
 
@@ -84,10 +82,10 @@ const DmSessionPlannerPage: NextPage = () => {
 
   React.useEffect(() => {
     if (
-      querySceneId &&
-      orderedScenes.some((scene) => scene.id === querySceneId)
+      workingSession.sceneId &&
+      orderedScenes.some((scene) => scene.id === workingSession.sceneId)
     ) {
-      setSelectedSceneId(querySceneId);
+      setSelectedSceneId(workingSession.sceneId);
       return;
     }
     if (!selectedSceneId && orderedScenes.length > 0) {
@@ -98,7 +96,7 @@ const DmSessionPlannerPage: NextPage = () => {
     ) {
       setSelectedSceneId(orderedScenes[0]?.id ?? null);
     }
-  }, [orderedScenes, querySceneId, selectedSceneId]);
+  }, [orderedScenes, workingSession.sceneId, selectedSceneId]);
 
   const selectedScene =
     orderedScenes.find((scene) => scene.id === selectedSceneId) ?? null;
@@ -194,6 +192,11 @@ const DmSessionPlannerPage: NextPage = () => {
     persistSceneOrder(list);
   };
 
+  const handleSelectScene = (sceneId: string) => {
+    setSelectedSceneId(sceneId);
+    setWorkingSession({ sceneId });
+  };
+
   const handleCreateScene = () => {
     if (!sessionId) return;
     const created = createNoteForCurrent({
@@ -202,6 +205,7 @@ const DmSessionPlannerPage: NextPage = () => {
     });
     if (created) {
       setSelectedSceneId(created.id);
+      setWorkingSession({ sceneId: created.id });
     }
   };
 
@@ -240,10 +244,7 @@ const DmSessionPlannerPage: NextPage = () => {
       sceneNoteId: sceneId,
     });
     if (encounter) {
-      router.push({
-        pathname: "/prototype/dm-encounters",
-        query: { encounterId: encounter.id },
-      });
+      router.push(buildUrl("/prototype/dm-encounters", { encounterId: encounter.id }));
     }
   };
 
@@ -342,7 +343,7 @@ const DmSessionPlannerPage: NextPage = () => {
         <div className="session-planner__actions">
           {currentSession && (
             <Link
-              className="btn-primary"
+              className="btn"
               href={`/prototype/dm-play?sessionId=${currentSession.id}${
                 selectedScene ? `&sceneId=${selectedScene.id}` : ""
               }`}
@@ -352,7 +353,7 @@ const DmSessionPlannerPage: NextPage = () => {
           )}
           <button
             type="button"
-            className="btn-primary"
+            className="btn"
             onClick={handleCreateScene}
             disabled={!sessionId}
           >
@@ -360,7 +361,7 @@ const DmSessionPlannerPage: NextPage = () => {
           </button>
           <button
             type="button"
-            className="btn-primary"
+            className="btn"
             onClick={handleCreateSessionNote}
             disabled={!sessionId}
           >
@@ -369,7 +370,7 @@ const DmSessionPlannerPage: NextPage = () => {
           {currentSession && (
             <button
               type="button"
-              className="btn-primary"
+              className="btn"
               onClick={() =>
                 setSessionDeleteModal({ open: true, removeChildren: true })
               }
@@ -390,12 +391,12 @@ const DmSessionPlannerPage: NextPage = () => {
                 className={`session-planner__scene${
                   scene.id === selectedSceneId ? " is-active" : ""
                 }`}
-                onClick={() => setSelectedSceneId(scene.id)}
+                onClick={() => handleSelectScene(scene.id)}
               >
                 <div className="session-planner__scene-body">
                   <input
                     type="text"
-                    className="session-planner__scene-title field-input"
+                    className="session-planner__scene-title input"
                     value={scene.title || ""}
                     onChange={(event) =>
                       handleSceneTitleChange(scene.id, event.target.value)
@@ -404,7 +405,7 @@ const DmSessionPlannerPage: NextPage = () => {
                   />
                   <div className="session-planner__scene-meta">
                     <select
-                      className="session-planner__badge-select field-select field-select--compact"
+                      className="session-planner__badge-select select"
                       value={scene.tags?.[0] || ""}
                       onChange={(event) => {
                         event.stopPropagation();
@@ -421,7 +422,7 @@ const DmSessionPlannerPage: NextPage = () => {
                     <div className="session-planner__scene-move">
                       <button
                         type="button"
-                        className="btn-primary"
+                        className="btn"
                         aria-label="Move scene up"
                         onClick={(event) => {
                           event.stopPropagation();
@@ -429,11 +430,11 @@ const DmSessionPlannerPage: NextPage = () => {
                         }}
                         disabled={index === 0}
                       >
-                        ↑
+                        ?
                       </button>
                       <button
                         type="button"
-                        className="btn-primary"
+                        className="btn"
                         aria-label="Move scene down"
                         onClick={(event) => {
                           event.stopPropagation();
@@ -441,7 +442,7 @@ const DmSessionPlannerPage: NextPage = () => {
                         }}
                         disabled={index === orderedScenes.length - 1}
                       >
-                        ↓
+                        ?
                       </button>
                     </div>
                   </div>
@@ -486,14 +487,14 @@ const DmSessionPlannerPage: NextPage = () => {
         </div>
         <div className="session-planner__preview-actions">
           <Link
-            className="btn-primary"
+            className="btn"
             href={`/prototype/dm-notes?noteId=${selectedScene.id}`}
           >
             Open Note
           </Link>
           <button
             type="button"
-            className="btn-primary"
+            className="btn"
             onClick={() =>
               handleCreateEncounterForScene(
                 selectedScene.id,
@@ -505,7 +506,7 @@ const DmSessionPlannerPage: NextPage = () => {
           </button>
           <button
             type="button"
-            className="btn-primary"
+            className="btn"
             onClick={() => openSceneDeleteModal(selectedScene)}
           >
             Delete Scene
@@ -593,14 +594,14 @@ const DmSessionPlannerPage: NextPage = () => {
               </div>
               <div className="session-planner__session-note-actions">
                 <Link
-                  className="btn-primary"
+                  className="btn"
                   href={`/prototype/dm-notes?noteId=${note.id}`}
                 >
                   Open
                 </Link>
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn"
                   onClick={() =>
                     handleSetPrimaryNote(
                       currentSession?.primaryNoteId === note.id ? null : note.id
@@ -628,7 +629,7 @@ const DmSessionPlannerPage: NextPage = () => {
       <div className="session-planner__beats-form">
         <input
           type="text"
-          className="field-input"
+          className="input"
           placeholder="Beat title"
           value={newBeat.title}
           onChange={(event) =>
@@ -637,7 +638,7 @@ const DmSessionPlannerPage: NextPage = () => {
         />
         <input
           type="text"
-          className="field-input"
+          className="input"
           placeholder="Summary (optional)"
           value={newBeat.summary}
           onChange={(event) =>
@@ -645,7 +646,7 @@ const DmSessionPlannerPage: NextPage = () => {
           }
         />
         <select
-          className="field-select"
+          className="select"
           value={newBeat.sceneNoteId}
           onChange={(event) =>
             setNewBeat((prev) => ({
@@ -662,7 +663,7 @@ const DmSessionPlannerPage: NextPage = () => {
           ))}
         </select>
         <select
-          className="field-select"
+          className="select"
           value={newBeat.encounterId}
           onChange={(event) =>
             setNewBeat((prev) => ({
@@ -680,7 +681,7 @@ const DmSessionPlannerPage: NextPage = () => {
         </select>
         <button
           type="button"
-          className="btn-primary"
+          className="btn"
           onClick={handleAddBeat}
           disabled={!newBeat.title.trim()}
         >
@@ -704,7 +705,7 @@ const DmSessionPlannerPage: NextPage = () => {
                 <div className="session-planner__beat-order">
                   <button
                     type="button"
-                    className="btn-primary"
+                    className="btn"
                     onClick={() => handleMoveBeat(beat.id, "up")}
                     disabled={index === 0}
                   >
@@ -712,7 +713,7 @@ const DmSessionPlannerPage: NextPage = () => {
                   </button>
                   <button
                     type="button"
-                    className="btn-primary"
+                    className="btn"
                     onClick={() => handleMoveBeat(beat.id, "down")}
                     disabled={index === beatsForSession.length - 1}
                   >
@@ -772,7 +773,7 @@ const DmSessionPlannerPage: NextPage = () => {
                 {encounter.sceneNoteId && (
                   <span>
                     {" "}
-                    · Scene: {" "}
+                    � Scene: {" "}
                     {
                       orderedScenes.find(
                         (scene) => scene.id === encounter.sceneNoteId
@@ -851,7 +852,7 @@ const DmSessionPlannerPage: NextPage = () => {
               </button>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn"
                 onClick={handleDeleteSession}
               >
                 Delete Session
@@ -902,7 +903,7 @@ const DmSessionPlannerPage: NextPage = () => {
               </button>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn"
                 onClick={handleDeleteScene}
               >
                 Delete Scene

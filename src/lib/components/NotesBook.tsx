@@ -294,33 +294,36 @@ const NotesBook: React.FC = () => {
             Index
           </button>
           {confirmDel.show && (
-            <div className="overlay-center" role="dialog" aria-modal="true">
+            <div className="overlay-center card" role="dialog" aria-modal="true">
+              <div className="card__body gap-sm">
               <span>Delete &quot;{confirmDel.title}&quot;?</span>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn btn--primary"
                 onClick={() => confirmDel.id && performDelete(confirmDel.id)}
               >
                 Delete
               </button>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn btn--ghost"
                 onClick={() =>
                   setConfirmDel({ show: false, id: null, title: "" })
                 }
               >
                 Cancel
               </button>
+              </div>
             </div>
           )}
           {toast.show && (
-            <div className="overlay-center" role="status">
+            <div className="overlay-center card" role="status">
+              <div className="card__body gap-sm">
               <span>{toast.message}</span>
               {toast.undo && (
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn btn--primary"
                   onClick={undoDelete}
                 >
                   Undo
@@ -328,22 +331,24 @@ const NotesBook: React.FC = () => {
               )}
               <button
                 type="button"
-                className="btn-primary"
+                className="btn btn--ghost"
                 onClick={() => setToast({ show: false, message: "" })}
               >
                 Dismiss
               </button>
+              </div>
             </div>
           )}
           {confirmCatDel.show && (
-            <div className="overlay-center" role="dialog" aria-modal="true">
+            <div className="overlay-center card" role="dialog" aria-modal="true">
+              <div className="card__body gap-sm">
               <span>
                 Delete category &quot;{confirmCatDel.path}&quot; and its
                 subcategories?
               </span>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn btn--primary"
                 onClick={() => {
                   if (confirmCatDel.path)
                     deleteCategoryCascade(confirmCatDel.path);
@@ -354,11 +359,12 @@ const NotesBook: React.FC = () => {
               </button>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn btn--ghost"
                 onClick={() => setConfirmCatDel({ show: false, path: null })}
               >
                 Cancel
               </button>
+              </div>
             </div>
           )}
         </>
